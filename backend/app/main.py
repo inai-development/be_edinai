@@ -40,6 +40,7 @@ def create_app() -> FastAPI:
         allow_origins=(
             [
                 "https://staticfile-shubhamc080.wasmer.app/examples/mp3.html",
+                "https://staticfile-shubhamc080.wasmer.app/"
                 "https://edinai.inaiverse.com",
                 "https://api.edinai.inaiverse.com",
             ]
