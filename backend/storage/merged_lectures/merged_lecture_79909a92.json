@@ -1,0 +1,58 @@
+{
+  "admin_id": 5,
+  "created_by": 16,
+  "created_by_role": "member",
+  "response": {
+    "status": true,
+    "message": "Merged lecture created successfully",
+    "data": {
+      "merged_id": "merged_lecture_79909a92",
+      "chapter_title": "ભારતનો સાંસ્કૃતિક વારસો : શિલ્પ અને સ્થાપત્ય",
+      "materials_count": 1,
+      "topics_count": 1,
+      "created_at": "2025-12-06T15:14:19.857005",
+      "selected_materials": [
+        "232"
+      ],
+      "merged_topics": [
+        {
+          "material_id": 232,
+          "topics_count": 1,
+          "topics": [
+            {
+              "title": "પ્રાચીન ભારતનું નગર આયોજન",
+              "summary": "",
+              "subtopics": [
+                {
+                  "title": "આ નગરોના મુખ્ય ત્રણ વિભાગો પડે છે",
+                  "narration": "(1) શાસક અધિકારીઓનો ગઢ (સિટડલ) (2) અન્ય અધિકારીઓના આવાસો ધરાવતું ઉપલું નગર (3) સામાન્ય નગરજનોના આવાસ ધરાવતું lad નગર."
+                },
+                {
+                  "title": "શાસક અધિકારીઓનો ગઢ ઊંચાઈ ઉપર બાંધવામાં આવ્યો છે.",
+                  "narration": ""
+                },
+                {
+                  "title": "ઉપલું નગર પણ રક્ષણાત્મક દીવાલોથી સુરક્ષિત છે. અહીંથી બે‑પાંચ ઓરડાવાળા મકાનો મળી આવ્યા છે.",
+                  "narration": ""
+                },
+                {
+                  "title": "નીચલા નગરનાં મકાનો મુખ્યત્વે હાથે ઘડેલી ઈંટોનાં બનાવેલાં છે.",
+                  "narration": ""
+                }
+              ],
+              "topic_id": "2"
+            }
+          ],
+          "selection": {
+            "selected_indices": [],
+            "selected_topic_ids": [
+              "2"
+            ]
+          }
+        }
+      ],
+      "language": "Hindi",
+      "duration": 45
+    }
+  }
+}

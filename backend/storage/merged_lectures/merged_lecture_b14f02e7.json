@@ -1,0 +1,63 @@
+{
+  "admin_id": 5,
+  "created_by": 16,
+  "created_by_role": "member",
+  "response": {
+    "status": true,
+    "message": "Merged lecture created successfully",
+    "data": {
+      "lecture_id": "merged_lecture_b14f02e7",
+      "title": "Merged Lecture 20251206092903",
+      "materials_count": 1,
+      "topics_count": 2,
+      "created_at": "2025-12-06T09:29:03.474988",
+      "selected_materials": [
+        "203"
+      ],
+      "merged_topics": [
+        {
+          "material_id": 203,
+          "topics_count": 2,
+          "topics": [
+            {
+              "title": "Basic Concepts",
+              "summary": "",
+              "subtopics": [
+                {
+                  "title": "Random number generation using probability distributions",
+                  "narration": "Random number generation using probability distributions."
+                },
+                {
+                  "title": "Sampling from populations or theoretical distributions",
+                  "narration": "Sampling from populations or theoretical distributions."
+                },
+                {
+                  "title": "Repeated trials to approximate expected values",
+                  "narration": "Repeated trials to approximate expected values."
+                },
+                {
+                  "title": "Using simulation outcomes for inference and prediction",
+                  "narration": "Using simulation outcomes for inference and prediction."
+                }
+              ],
+              "topic_id": "3"
+            },
+            {
+              "title": "Introduction",
+              "summary": "Statistical simulation refers to the use of random sampling techniques to model and analyze complex systems or stochastic processes. It helps approximate results that are otherwise difficult to compute analytically.",
+              "subtopics": [],
+              "topic_id": "1"
+            }
+          ],
+          "selection": {
+            "selected_indices": [],
+            "selected_topic_ids": [
+              "3",
+              "1"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "admin_id": 5,
+  "created_by": 16,
+  "created_by_role": "member",
+  "response": {
+    "status": true,
+    "message": "Merged lecture created successfully",
+    "data": {
+      "merged_id": "merged_lecture_0fcbe68d",
+      "chapter_title": "en ee) વારસો",
+      "materials_count": 1,
+      "topics_count": 1,
+      "created_at": "2025-12-08T09:32:31.401484",
+      "selected_materials": [
+        "1"
+      ],
+      "merged_topics": [
+        {
+          "material_id": 1,
+          "topics_count": 1,
+          "topics": [
+            {
+              "title": "ભારતનો વારસો",
+              "summary": "",
+              "subtopics": [
+                {
+                  "title": "પ્રાચીન ગ્રંથ “વિષ્ણુપુરાણ”માં ભારતનું વર્ણન",
+                  "narration": "સમુદ્રની ઉત્તરે અને હિમાલયની દક્ષિણે આવેલ સ્થળનું નામ ભારતવર્ષ છે, જેના સંતાનો ભારતીય છે."
+                },
+                {
+                  "title": "દેશની પ્રાકૃતિક સીમાઓ",
+                  "narration": "પૂર્વ, પશ્ચિમ, દક્ષિણ-ત્રણ દિશાઓમાં સમુદ્ર અને ઉત્તર દિશામાં હિમાલયની જિરિભાણા."
+                },
+                {
+                  "title": "વૈવિધ્યસભર વારસો",
+                  "narration": "ભારતભૂમિએ વૈવિધ્યસભર અને સમૃદ્ધ વારસો આપ્યો છે, શાંતિપ્રિય અને વેપારી સંસ્કૃતિ, અહિંસા અને શાંતિના મૂલ્યો વિશ્વભરમાં પ્રસંશા પામે છે."
+                }
+              ],
+              "topic_id": "1"
+            }
+          ],
+          "selection": {
+            "selected_indices": [],
+            "selected_topic_ids": [
+              "1"
+            ]
+          }
+        }
+      ],
+      "language": "Gujarati",
+      "duration": 45
+    }
+  }
+}
