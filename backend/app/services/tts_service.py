@@ -147,11 +147,11 @@ class GoogleTTSService:
     @staticmethod
     def _voice_for_language(language: str) -> Tuple[str, str]:
         mapping = {
-            "English": ("en-US", "en-IN-Chirp3-HD-Achernar"),
-            "Hindi": ("hi-IN", "hi-IN-Chirp3-HD-Achernar"),
-            "Gujarati": ("gu-IN", "gu-IN-Chirp3-HD-Achernar"),
+            "English": ("en-in", "en-IN-Chirp3-HD-Achernar"),
+            "Hindi": ("hi-in", "hi-IN-Chirp3-HD-Achernar"),
+            "Gujarati": ("gu-in", "gu-IN-Chirp3-HD-Achernar"),
         }
-        return mapping.get(language, ("en-US", "en-US-Wavenet-A"))
+        return mapping.get(language, ("en-in", "en-IN-Chirp3-HD-Achernar"))
 
     def _chunk_text(self, text: str) -> Iterator[str]:
         normalized = text.strip()
