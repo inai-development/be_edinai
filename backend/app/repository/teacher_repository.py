@@ -34,3 +34,6 @@ async def list_teachers() -> List[Teacher]:
 
 async def get_teacher(teacher_id: int) -> Optional[Teacher]:
     return _TEACHERS.get(teacher_id)
+
+
+    
