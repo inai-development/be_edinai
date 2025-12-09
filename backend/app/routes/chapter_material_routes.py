@@ -33,7 +33,7 @@ from app.schemas.chapter_material_schema import (
     ResponseBase,
     ChapterMaterialEditRequest,
 )
-from app.repository import auth_repository, registration_repository
+from app.repository import auth_repository, registration_repository,lecture_credit_repository
 from app.repository.chapter_material_repository import (
     create_chapter_material,
     get_chapter_material,
@@ -62,6 +62,7 @@ from app.repository.chapter_material_repository import (
     list_standards_for_admin,
     update_chapter_material_overrides,
 )
+from app.plan_limits import PLAN_CREDIT_LIMITS
 from app.utils.file_handler import (
     save_uploaded_file,
     ALLOWED_PDF_EXTENSIONS,
@@ -272,6 +273,33 @@ def _resolve_plan_label_for_admin(
     admin_record = auth_repository.get_admin_by_id(admin_id) or registration_repository.get_admin_by_id(admin_id)
     return _extract_plan(admin_record)
 
+def _get_admin_credit_summary(admin_id: int, current_user: dict) -> Dict[str, Any]:
+    """Return lecture credit usage summary for the given admin."""
+
+    plan_label = _resolve_plan_label_for_admin(admin_id, current_user, requested_plan_label=None)
+    plan_credit_total = PLAN_CREDIT_LIMITS.get(plan_label) if plan_label else None
+    credit_usage = lecture_credit_repository.get_usage(admin_id)
+
+    credit_remaining: Optional[int]
+    if plan_credit_total is not None:
+        credit_remaining = max(plan_credit_total - credit_usage["credits_used"], 0)
+        post_limit_generated = (
+            credit_usage["credits_used"] - plan_credit_total
+            if credit_usage["credits_used"] > plan_credit_total
+            else 0
+        )
+    else:
+        credit_remaining = None
+        post_limit_generated = 0
+
+    return {
+        "plan_label": plan_label,
+        "total": plan_credit_total,
+        "used": credit_usage["credits_used"],
+        "remaining": credit_remaining,
+        "post_limit_generated": post_limit_generated,
+        "overflow_attempts": credit_usage["overflow_attempts"],
+    }
 
 def _ensure_lecture_config_access(current_user: dict) -> None:
     if current_user["role"] == "admin":
@@ -1098,12 +1126,14 @@ async def get_chapter_dashboard(
         admin_id = _resolve_admin_id(current_user)
         stats = get_dashboard_stats(admin_id)
         chapter_overview = get_chapter_overview_data(admin_id)
+        lecture_credits = _get_admin_credit_summary(admin_id, current_user)
         return {
             "status": True,
             "message": "Dashboard data retrieved successfully",
             "data": {
                 "chapter_metrics": stats,
-                "chapter_overview": chapter_overview
+                "chapter_overview": chapter_overview,
+                                 "lecture_credits": lecture_credits,
             },
         }
     except Exception as e:
@@ -2169,7 +2199,12 @@ async def generate_lecture_from_topics(
         title=context_payload["title"],
         metadata=context_payload["metadata"],
     )
-
+# Record lecture credit usage for this admin (1 credit per generated lecture)
+    try:
+        admin_id = _resolve_admin_id(current_user)
+        lecture_credit_repository.upsert_usage(admin_id, credits_delta=1)
+    except Exception as exc:
+        logger.warning("Failed to record lecture credit usage for admin %s: %s", admin_id, exc)
     # ============================================================================
     # URL GENERATION AND TERMINAL PRINTING
     # ============================================================================
