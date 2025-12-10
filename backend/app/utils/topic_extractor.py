@@ -8,6 +8,18 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from groq import Groq
+try:
+    from app.services.vision_ocr_service import (
+        get_vision_service,
+
+        is_vision_api_enabled,
+
+    )
+    VISION_API_AVAILABLE = True
+
+except (ModuleNotFoundError, ImportError):
+
+    VISION_API_AVAILABLE = False
 
 try:
     import pytesseract
@@ -492,7 +504,79 @@ def extract_text_with_auto_language(pdf_path: Path) -> Tuple[str, Optional[str]]
     final_language = detected_language or internal_code
     return ocr_text, final_language
 
-
+def extract_text_with_vision_api(pdf_path: Path) -> Tuple[str, Optional[str]]:
+    """
+    Extract text from PDF using Google Cloud Vision API.
+    
+    This is an alternative to extract_text_with_auto_language() that uses
+    Vision API instead of ocrmypdf/pytesseract.
+    
+    Args:
+        pdf_path: Path to the PDF file.
+        
+    Returns:
+        Tuple of (extracted_text, detected_language_code)
+        
+    Raises:
+        RuntimeError: If Vision API is not available or enabled.
+    """
+    if not VISION_API_AVAILABLE:
+        raise RuntimeError(
+            "Google Cloud Vision API is not available. "
+            "Install it with 'pip install google-cloud-vision'."
+        )
+    
+    if not is_vision_api_enabled():
+        logger.info(
+            "Vision API is available but not enabled. Set USE_VISION_API=true in .env to enable it."
+        )
+        # Fall back to standard method
+        return extract_text_with_auto_language(pdf_path)
+    
+    logger.info("Using Google Cloud Vision API for OCR: %s", pdf_path.name)
+    
+    try:
+        vision_service = get_vision_service()
+        
+        # Map our internal language codes to Vision API hints
+        language_hints = ["en", "hi", "gu"]  # English, Hindi, Gujarati
+        
+        # Extract text from PDF
+        result = vision_service.extract_text_from_pdf(
+            pdf_path,
+            language_hints=language_hints
+        )
+        
+        extracted_text = result["text"]
+        vision_language = result.get("language")  # ISO 639-1 code (e.g., 'en', 'hi')
+        
+        # Map Vision API language code to our internal codes
+        vision_to_internal = {
+            "en": "eng",
+            "hi": "hin",
+            "gu": "guj",
+        }
+        
+        internal_language = vision_to_internal.get(vision_language) if vision_language else None
+        
+        # If Vision didn't detect or we don't have mapping, try our language detection
+        if not internal_language and extracted_text.strip():
+            internal_language = detect_dominant_language(extracted_text)
+        
+        logger.info(
+            "Vision API extraction completed: %d characters, language=%s (confidence=%.2f)",
+            len(extracted_text),
+            internal_language or "unknown",
+            result.get("avg_confidence", 0.0)
+        )
+        
+        return extracted_text, internal_language
+        
+    except Exception as exc:
+        logger.error("Vision API extraction failed for %s: %s", pdf_path.name, exc)
+        logger.info("Falling back to standard OCR method")
+        # Fall back to the standard method
+        return extract_text_with_auto_language(pdf_path)
     
 def detect_pdf_language(pdf_path: Path) -> Dict[str, str]:
     """Detect the probable language code/label for the given PDF without OCR."""
@@ -681,7 +765,13 @@ def extract_topics_from_pdf(pdf_path: Path) -> Dict[str, Any]:
         raise FileNotFoundError(f"PDF file not found: {pdf_path}")
 
     logger.info("Reading PDF for topic extraction: %s", pdf_path.name)
-    pdf_text, language_code = extract_text_with_auto_language(pdf_path)
+    
+    # Use Vision API if available and enabled, otherwise use standard method
+    if VISION_API_AVAILABLE and is_vision_api_enabled():
+        logger.info("Vision API is enabled; using Vision API for text extraction")
+        pdf_text, language_code = extract_text_with_vision_api(pdf_path)
+    else:
+        pdf_text, language_code = extract_text_with_auto_language(pdf_path)
 
     if not pdf_text.strip():
         logger.error("No text could be extracted from %s; skipping topic extraction.", pdf_path.name)

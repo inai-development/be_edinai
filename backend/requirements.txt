@@ -99,3 +99,4 @@ google-api-core
 gunicorn
 uvicorn[standard]
 gunicorn==22.0.0
+google-cloud-vision

@@ -15,6 +15,7 @@ from .system_routes import router as system_router
 from .teacher_routes import router as teacher_router
 from .user_routes import router as user_router
 from .superadministration_portal_routes import router as superadministration_portal_router
+from .vision_routes import router as vision_router
 
 __all__ = [
     "admin_portal_router",
@@ -32,4 +33,5 @@ __all__ = [
     "student_router",
     "teacher_router",
     "user_router",
+    "vision_router",
 ]

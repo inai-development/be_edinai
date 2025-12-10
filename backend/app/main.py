@@ -25,6 +25,7 @@ from .routes import (
     superadministration_portal_router,
     teacher_router,
     user_router,
+    vision_router,
 )
 from .utils.file_handler import UPLOAD_DIR, ensure_upload_dir, ensure_upload_subdir
 from .services.auth_service import ensure_dev_admin_account
@@ -92,7 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(student_portal_router)
     app.include_router(student_management_router)
     app.include_router(chapter_material_router)
-
+    app.include_router(vision_router)
     # Do NOT include contact_router twice!
 
     # ----------------------------------
