@@ -10,6 +10,7 @@ from ..repository import (
     student_management_repository as roster_repository,
     member_repository,
 )
+
 from ..schemas import AdminResponse, MemberResponse, PackageResponse, WorkType
 from ..plan_limits import PLAN_CREDIT_LIMITS
 
@@ -367,18 +368,24 @@ def get_member_dashboard(*, member_id: int, admin_id: int, work_type: str) -> Di
             work_type="student",
             field="last_login",
         )
+
+        chapter_overview = get_chapter_overview_data(admin_id)
+
         payload = {
             "chapter_metrics": {
                 "total_students": total_students,
                 "total_lectures": total_lectures,
                 "recent_student_activity": recent_student_activity,
             }
-        }
+        },
+
+        "chapter_overview": chapter_overview
+
     elif work_type == "student":
         total_chapters = dashboard_repository.count_members(admin_id, work_type="chapter", active_only=True)
         # total_lectures = dashboard_repository.count_total_lectures(admin_id) 
-        total_lectures = 0       
-        total_students = roster_repository.count_roster_students(admin_id, member_id=member_id)
+        total_lectures = dashboard_repository.count_admin_lectures(admin_id)        
+        total_students = roster_repository.count_roster_students(admin_id)
         payload = {
             "student_metrics": {
                 "total_chapters": total_chapters,
