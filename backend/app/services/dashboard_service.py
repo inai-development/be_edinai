@@ -376,7 +376,8 @@ def get_member_dashboard(*, member_id: int, admin_id: int, work_type: str) -> Di
         }
     elif work_type == "student":
         total_chapters = dashboard_repository.count_members(admin_id, work_type="chapter", active_only=True)
-        total_lectures = dashboard_repository.count_total_lectures(admin_id)        
+        # total_lectures = dashboard_repository.count_total_lectures(admin_id) 
+        total_lectures = 0       
         total_students = roster_repository.count_roster_students(admin_id, member_id=member_id)
         payload = {
             "student_metrics": {
