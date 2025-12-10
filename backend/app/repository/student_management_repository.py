@@ -271,9 +271,16 @@ def delete_roster_entry(admin_id: int, enrollment_number: str) -> bool:
 
 
 2
-def count_roster_students(admin_id: int) -> int:
+def count_roster_students(admin_id: int, *, member_id: Optional[int] = None) -> int:
 
     """Return the total number of rostered students for an admin."""
+
+    conditions = ["admin_id = %(admin_id)s"]
+    params: Dict[str, Any] = {"admin_id": admin_id}
+
+    if member_id is not None:
+        params["member_id"] = member_id
+        conditions.append("assigned_member_id = %(member_id)s")
 
     query = (
         "SELECT COUNT(*) FROM student_roster_entries "
