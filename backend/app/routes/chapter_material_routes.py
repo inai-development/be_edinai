@@ -389,8 +389,13 @@ def _normalize_requested_language(value: Optional[str]) -> Optional[str]:
 def _normalize_requested_duration(value: Optional[int]) -> Optional[int]:
     if value is None:
         return None
-    return value if value in DURATION_OPTIONS else None
-
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError):
+        return None
+    if normalized < DEFAULT_MIN_DURATION or normalized > DEFAULT_MAX_DURATION:
+        return None
+    return normalized
 
 def _save_merged_lecture_payload(lecture_id: str, payload: Dict[str, Any]) -> None:
     MERGED_LECTURES_DIR.mkdir(parents=True, exist_ok=True)
