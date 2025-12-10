@@ -295,7 +295,7 @@ async def upload_student_roster(
 @router.get("/roster", response_model=ResponseBase)
 async def list_student_roster(current_user: dict = Depends(member_required(WorkType.STUDENT))) -> ResponseBase:
     admin_id = current_user["admin_id"]
-    students = roster_repo.fetch_roster_entries(admin_id)
+    students = roster_repo.fetch_roster_entries(admin_id, member_id=current_user["id"])
     return ResponseBase(status=True, message="Student roster fetched successfully", data={"students": students})
 
 
@@ -306,7 +306,7 @@ async def list_student_credentials(
     """Return enrollment numbers with their generated passwords only."""
 
     admin_id = current_user["admin_id"]
-    roster_entries = roster_repo.fetch_roster_entries(admin_id)
+    roster_entries = roster_repo.fetch_roster_entries(admin_id, member_id=current_user["id"])
 
     credentials = [
         {
@@ -333,7 +333,11 @@ async def get_roster_student(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enrollment number is required")
 
     admin_id = current_user["admin_id"]
-    roster_entry = roster_repo.fetch_roster_entry_by_enrollment(admin_id, normalized)
+    roster_entry = roster_repo.fetch_roster_entry_by_enrollment(
+        admin_id,
+        normalized,
+        member_id=current_user["id"],
+    )
     if not roster_entry:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
 
@@ -355,7 +359,11 @@ async def delete_roster_student(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enrollment number is required")
 
     admin_id = current_user["admin_id"]
-    deleted = roster_repo.delete_roster_entry(admin_id, normalized)
+    deleted = roster_repo.delete_roster_entry(
+        admin_id,
+        normalized,
+        member_id=current_user["id"],
+    )
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found in roster")
 
@@ -730,14 +738,12 @@ async def list_student_filters(
     current_user: dict = Depends(member_required(WorkType.STUDENT)),
 ) -> ResponseBase:
     admin_id = current_user["admin_id"]
-    filters = roster_repo.fetch_class_division_filters(admin_id)
+    filters = roster_repo.fetch_class_division_filters(admin_id, member_id=current_user["id"])
     return ResponseBase(
         status=True,
         message="Class and division filters fetched successfully",
         data=filters,
     )
-
-
 @router.get("/subjects", response_model=ResponseBase)
 async def list_class_subjects(
     class_filter: Optional[str] = Query(default=None, alias="class_filter"),

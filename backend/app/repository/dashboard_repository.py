@@ -118,6 +118,40 @@ def fetch_admin(admin_id: int) -> Optional[Dict[str, Any]]:
     }
 
 
+def get_member_lecture_metrics(admin_id: int, member_id: int) -> Dict[str, int]:
+    query = (
+        "SELECT COUNT(*) AS total_lectures, "
+        "       COUNT(*) FILTER ("
+        "           WHERE CAST(COALESCE(lecture_gen.lecture_data->>'play_count', '0') AS INTEGER) > 0"
+        "       ) AS played_lectures, "
+        "       COUNT(*) FILTER (WHERE lecture_gen.lecture_shared = TRUE) AS shared_lectures "
+        "FROM lecture_gen "
+        "WHERE lecture_gen.admin_id = %(admin_id)s "
+        "  AND EXISTS ("
+        "      SELECT 1 FROM student_roster_entries roster "
+        "      WHERE roster.assigned_member_id = %(member_id)s "
+        "        AND roster.lecture_uid = lecture_gen.lecture_uid"
+        "  )"
+    )
+
+    with get_pg_cursor() as cur:
+        cur.execute(query, {"admin_id": admin_id, "member_id": member_id})
+        row = cur.fetchone() or {}
+
+    total = int(row.get("total_lectures") or 0)
+    played = int(row.get("played_lectures") or 0)
+    shared = int(row.get("shared_lectures") or 0)
+    pending = max(total - played, 0)
+    qa_sessions = get_member_qa_session_count(admin_id, member_id)
+
+    return {
+        "total_lectures": total,
+        "played_lectures": played,
+        "shared_lectures": shared,
+        "pending_lectures": pending,
+        "qa_sessions": qa_sessions,
+    }
+    
 def fetch_package(name: str) -> Optional[Dict[str, Any]]:
     query = (
         f"SELECT {', '.join(_PACKAGE_COLUMNS)} FROM packages "
