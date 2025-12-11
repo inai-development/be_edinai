@@ -545,7 +545,7 @@ async def get_lecture(
 
 
 @router.get(
-    "/",
+    "",
     response_model=List[LectureSummaryResponse],
     summary="List  lectures for the autenticated admin",
     description="Get a list of lectures generated within the current admin account with optional filtering"
@@ -623,7 +623,7 @@ async def delete_lecture(
         )
         
 @router.delete(
-    "/",
+    "",
     response_model=Dict[str, Any],
     summary="Delete lectures by class and subject",
     description="Remove all lectures for a given standard and subject (optionally division)."
