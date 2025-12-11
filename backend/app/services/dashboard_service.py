@@ -80,9 +80,17 @@ def _collect_admin_lecture_metrics(admin_id: int) -> Dict[str, int]:
     return dashboard_repository.get_admin_lecture_metrics(admin_id)
 
 
+def get_select_reference_student_member(admin_id: int) -> Optional[dict]:
+    """Pick a representative student-management member (if any) for the admin."""
+    active_students = member_repository.list_members(admin_id, work_type="student", active_only=True)
+    if active_students:
+        return active_students[0]
+    all_students = member_repository.list_members(admin_id, work_type="student", active_only=False)
+    if all_students:
+        return all_students[0]
+    return None
 def get_chapter_overview(admin_id: int) -> Dict[str, Any]:
     """Return flattened chapter overview lecture list wrapped in items container."""
-
     return {"items": get_chapter_overview_data(admin_id)}
 
 
