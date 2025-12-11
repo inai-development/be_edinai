@@ -80,7 +80,7 @@ def _collect_admin_lecture_metrics(admin_id: int) -> Dict[str, int]:
     return dashboard_repository.get_admin_lecture_metrics(admin_id)
 
 
-def get_select_reference_student_member(admin_id: int) -> Optional[dict]:
+def _select_reference_student_member(admin_id: int) -> Optional[dict]:
     """Pick a representative student-management member (if any) for the admin."""
     active_students = member_repository.list_members(admin_id, work_type="student", active_only=True)
     if active_students:
@@ -664,7 +664,6 @@ def get_student_management_dashboard(admin_id: int) -> Dict[str, object]:
 def get_summary(admin_id: int) -> Dict[str, object]:
     summary = dashboard_repository.dashboard_summary(admin_id)
     summary["alerts"] = []
-
     if summary["days_until_expiry"] <= 30:
         summary["alerts"].append(
             {
@@ -672,7 +671,6 @@ def get_summary(admin_id: int) -> Dict[str, object]:
                 "message": f"Subscription expires in {summary['days_until_expiry']} days",
             }
         )
-
     if summary["total_members"] == 0:
         summary["alerts"].append(
             {
@@ -680,24 +678,13 @@ def get_summary(admin_id: int) -> Dict[str, object]:
                 "message": "No members added yet. Add your first team member!",
             }
         )
-
     return summary
-
-
 def get_student_management_summary(admin_id: int) -> Dict[str, int]:
-
     """Return only roster-based student counts for the admin."""
-
     roster_students = roster_repository.count_roster_students(admin_id)
-
     return {
-
         # "roster_students": roster_students,
-
         "total_students": roster_students,
-
         "total_lectures": 0,
-
         "total_paid": 0,
-
     }
