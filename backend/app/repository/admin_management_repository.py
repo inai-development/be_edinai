@@ -1,10 +1,15 @@
 """Raw PostgreSQL helpers for admin management (admins table)."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ..postgres import get_pg_cursor
+
+logger = logging.getLogger(__name__)
+
+_ADMIN_PROFILE_COLUMN_CHECKED = False
 
 _ADMIN_COLUMNS = [
     "admin_id",
@@ -20,6 +25,7 @@ _ADMIN_COLUMNS = [
     "created_at",
     "updated_at",
     "last_login",
+    "admin_profile_photo",
 ]
 
 _PACKAGE_COLUMNS = [
@@ -39,6 +45,20 @@ _PACKAGE_COLUMNS = [
     "features",
     "notes",
 ]
+
+
+def _ensure_admin_profile_photo_column() -> None:
+    global _ADMIN_PROFILE_COLUMN_CHECKED
+    if _ADMIN_PROFILE_COLUMN_CHECKED:
+        return
+    try:
+        with get_pg_cursor(dict_rows=False) as cur:
+            cur.execute(
+                "ALTER TABLE admins ADD COLUMN IF NOT EXISTS admin_profile_photo TEXT"
+            )
+        _ADMIN_PROFILE_COLUMN_CHECKED = True
+    except Exception as exc:  # pragma: no cover - best effort safeguard
+        logger.warning("Unable to ensure admin_profile_photo column exists: %s", exc)
 
 
 def _row_to_admin(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -65,6 +85,9 @@ def admin_exists_by_email(email: str, *, exclude_admin_id: Optional[int] = None)
 
 
 def create_admin(**fields: Any) -> Dict[str, Any]:
+    _ensure_admin_profile_photo_column()
+    fields = dict(fields)
+    fields.setdefault("admin_profile_photo", None)
     columns = [
         "name",
         "email",
@@ -77,6 +100,7 @@ def create_admin(**fields: Any) -> Dict[str, Any]:
         "is_super_admin",
         "created_at",
         "updated_at",
+        "admin_profile_photo",
     ]
     if "admin_id" in fields:
         columns = ["admin_id", *columns]
@@ -121,6 +145,7 @@ def list_admins(*, skip: int, limit: int, active_only: bool) -> Tuple[List[Dict[
 
 
 def get_admin_by_id(admin_id: int) -> Optional[Dict[str, Any]]:
+    _ensure_admin_profile_photo_column()
     query = (
         f"SELECT {', '.join(_ADMIN_COLUMNS)} FROM admins "
         "WHERE admin_id = %(admin_id)s"
@@ -132,6 +157,7 @@ def get_admin_by_id(admin_id: int) -> Optional[Dict[str, Any]]:
 
 
 def admin_exists_by_id(admin_id: int) -> bool:
+    _ensure_admin_profile_photo_column()
     with get_pg_cursor(dict_rows=False) as cur:
         cur.execute(
             "SELECT 1 FROM admins WHERE admin_id = %(admin_id)s LIMIT 1",
@@ -141,6 +167,7 @@ def admin_exists_by_id(admin_id: int) -> bool:
 
 
 def update_admin(admin_id: int, **fields: Any) -> Optional[Dict[str, Any]]:
+    _ensure_admin_profile_photo_column()
     if not fields:
         return get_admin_by_id(admin_id)
 
@@ -156,6 +183,7 @@ def update_admin(admin_id: int, **fields: Any) -> Optional[Dict[str, Any]]:
         "password",
         "updated_at",
         "last_login",
+        "admin_profile_photo",
     }
     invalid = set(fields.keys()) - allowed
     if invalid:

@@ -16,7 +16,8 @@ from ..contact import crud as contact_crud
 from ..schemas import ContactCreate, MemberCreate, MemberResponse, MemberUpdate, WorkType
 from ..utils.role_generator import generate_role_id
 from ..utils.passwords import truncate_password
-from ..utils.file_handler import save_uploaded_file
+from ..utils import s3_file_handler
+from ..config import get_settings
 from ..utils import bcrypt_compat  # noqa: F401
 
 _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -134,6 +135,8 @@ def get_admin_profile(admin_id: int) -> Dict[str, Any]:
     )
 
     photo = _first_path(contact.image_path) if contact else None
+    if not photo:
+        photo = (auth_admin or {}).get("admin_profile_photo")
 
     full_name = None
     if contact:
@@ -186,11 +189,23 @@ async def update_admin_profile(
 
     photo_path: Optional[str] = None
     if photo_file is not None:
-        upload_info = await save_uploaded_file(
-            photo_file,
-            subfolder=f"education_center/admin_{admin_id}/profile",
-        )
-        photo_path = upload_info["file_path"]
+        photo_path = None
+        try:
+            settings = get_settings()
+            if not getattr(settings, "s3_enabled", False):
+                raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="S3 is not configured")
+
+            s3_service = s3_file_handler.get_s3_service(settings)
+            upload_info = await s3_file_handler.upload_image_to_s3(
+                photo_file,
+                s3_service,
+                subfolder=f"admin_profiles/admin_{admin_id}",
+            )
+            photo_path = upload_info.get("s3_url")
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Failed to upload profile photo: {exc}") from exc
 
     updates: Dict[str, Any] = {
         "first_name": first_name,
@@ -215,6 +230,13 @@ async def update_admin_profile(
             admin_id=admin_id,
             created_by=admin_id,
             image_path=photo_path,
+        )
+
+    if photo_path is not None:
+        admin_management_repository.update_admin(
+            admin_id,
+            admin_profile_photo=photo_path,
+            updated_at=datetime.utcnow(),
         )
 
     return get_admin_profile(admin_id)
