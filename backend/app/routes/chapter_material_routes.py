@@ -827,7 +827,7 @@ def _fetch_filtered_lectures(
         chapter_clean = chapter.strip().lower()
         title_expr = func.lower(
             func.trim(
-                func.coalesce(ChapterMaterial.ChapterMaterial.chapter_title, "")
+                func.coalesce(ChapterMaterial.chapter_title, "")
             )
         )
         number_expr = func.lower(func.trim(ChapterMaterial.chapter_number))
