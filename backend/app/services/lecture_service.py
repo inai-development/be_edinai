@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from copy import deepcopy
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -202,12 +203,25 @@ class LectureService:
         if not (updated or metadata_changed):
             return self._sanitize_audio_metadata(record)
 
-        updates = {
-            "slides": slides,
-            "audio_generated": True,
-        }
-        updated_record = await self._repository.update_lecture(lecture_id, updates)
-        return self._sanitize_audio_metadata(updated_record)
+        # Update the in-memory record with changes
+        record["slides"] = slides
+        record["audio_generated"] = True
+        record["updated_at"] = datetime.utcnow().isoformat()
+        
+        # Only persist to database if we have a db_record_id (meaning it was already created)
+        if record.get("db_record_id"):
+            updates = {
+                "slides": slides,
+                "audio_generated": True,
+            }
+            try:
+                updated_record = await self._repository.update_lecture(lecture_id, updates)
+                return self._sanitize_audio_metadata(updated_record)
+            except FileNotFoundError:
+                logger.warning("Could not update lecture %s in database, returning in-memory record", lecture_id)
+                return self._sanitize_audio_metadata(record)
+        
+        return self._sanitize_audio_metadata(record)
 
     def _build_audio_url(self, lecture_id: str, filename: str) -> str:
         relative_url = f"/chapter-materials/chapter_lecture/audio/{lecture_id}/{filename}"
