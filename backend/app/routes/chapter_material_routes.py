@@ -943,7 +943,7 @@ def _fetch_filtered_lectures(
         )
 
         lecture_size = 0
-        thumbnail_url: Optional[str] = record.cover_photo_ur
+        thumbnail_url: Optional[str] = record.cover_photo_url
         lecture_uid = record.lecture_uid
         if record.lecture_link and lecture_uid:
             try:

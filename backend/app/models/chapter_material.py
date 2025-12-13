@@ -59,6 +59,7 @@ class LectureGen(Base):
     chapter_title = Column("lecture_title", String(255), nullable=False)
     lecture_link = Column(String(512), nullable=False)  # JSON URL will be stored here
     lecture_data = Column(JSON, nullable=True)
+    cover_photo_url = Column(String(512), nullable=True)
 
     subject = Column(String(128), nullable=True)
     std = Column(String(32), nullable=True)
