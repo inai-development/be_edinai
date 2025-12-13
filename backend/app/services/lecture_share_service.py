@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.models.chapter_material import ChapterMaterial, LectureGen
 from app.repository import student_portal_repository
 from app.repository import lecture_share_repository
+from app.repository import student_portal_video_repository
 from app.schemas.lecture_schema import LectureShareRequest
 from app.repository.lecture_repository import _clone_record, _slugify, get_lecture, LectureRepository
 from app.postgres import get_pg_cursor

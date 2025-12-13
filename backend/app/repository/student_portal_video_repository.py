@@ -956,3 +956,23 @@ def get_watch_summary(
         "completed_videos": summary.get("completed_videos", 0),
         "total_records": summary.get("total_records", 0),
     }
+
+
+def delete_lecture_videos_by_lecture_id(*, admin_id: int, lecture_id: str) -> int:
+    params: Dict[str, Any] = {
+        "admin_id": admin_id,
+        "lecture_id": lecture_id,
+    }
+
+    query = """
+        DELETE FROM student_portal_videos
+        WHERE admin_id = %(admin_id)s
+          AND (
+            video_url LIKE '%%/lectures/%%/' || %(lecture_id)s || '.json'
+            OR video_url LIKE '%%/lectures/%%/' || %(lecture_id)s || '/%%'
+          )
+    """
+
+    with get_pg_cursor(dict_rows=False) as cur:
+        cur.execute(query, params)
+        return cur.rowcount or 0
