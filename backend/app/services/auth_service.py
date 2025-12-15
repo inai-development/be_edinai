@@ -370,7 +370,11 @@ def get_current_user_info(current_user: Dict[str, object]) -> Tuple[str, Dict[st
             "has_inai_credentials": user_obj.get("has_inai_credentials"),
             "is_super_admin": user_obj.get("is_super_admin"),
             "expiry_date": expiry_date.isoformat() if isinstance(expiry_date, datetime) else expiry_date,
-            "days_until_expiry": (expiry_date - datetime.utcnow()).days if isinstance(expiry_date, datetime) else None,
+            "days_until_expiry": (
+                (expiry_date - datetime.now(timezone.utc)).days
+                if isinstance(expiry_date, datetime)
+                else None
+            ),
         }
     else:
         work_type = user_obj.get("work_type")

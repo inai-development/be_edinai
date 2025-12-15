@@ -28,6 +28,29 @@ def _clone_record(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Return a deep copy of the payload to prevent accidental mutations."""
     return json.loads(json.dumps(payload or {}))
 
+def _maybe_reuse_existing_lecture_id(
+    *,
+    admin_id: Optional[int],
+    material_id: Optional[int],
+) -> Optional[str]:
+    """
+    Return the most recent lecture UID generated for the same admin/material combo.
+    This lets us overwrite/regenerate lectures without producing duplicate IDs.
+    """
+    if not admin_id or not material_id:
+        return None
+    query = """
+        SELECT lecture_uid
+        FROM lecture_gen
+        WHERE admin_id = %(admin_id)s
+          AND material_id = %(material_id)s
+        ORDER BY updated_at DESC, created_at DESC
+        LIMIT 1
+    """
+    with get_pg_cursor() as cur:
+        cur.execute(query, {"admin_id": admin_id, "material_id": material_id})
+        row = cur.fetchone()
+    return row.get("lecture_uid") if row and row.get("lecture_uid") else None
 
 async def create_lecture(
     *,
@@ -50,8 +73,15 @@ async def create_lecture(
     lecture_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     metadata = _default_metadata(metadata)
-    lecture_id = lecture_uid or await _generate_lecture_id()
-    created_at = datetime.utcnow().isoformat()
+    admin_value = admin_id or metadata.get("admin_id") 
+    material_value = material_id or metadata.get("material_id")
+    reuse_lecture_uid: Optional[str] = None
+    if not lecture_uid and material_value:
+        reuse_lecture_uid = _maybe_reuse_existing_lecture_id(
+            admin_id=admin_value,
+            material_id=material_value,
+        )
+    lecture_id = lecture_uid or reuse_lecture_uid or await _generate_lecture_id()
 
     record: Dict[str, Any] = {
         "lecture_id": lecture_id,
@@ -73,9 +103,6 @@ async def create_lecture(
     }
 
     record["lecture_url"] = lecture_url or _build_default_url(record)
-
-    admin_value = admin_id or metadata.get("admin_id") or 0
-    material_value = material_id or metadata.get("material_id") or 0
     subject_value = subject or metadata.get("subject")
     std_value = std or metadata.get("std") or metadata.get("class")
     sem_value = sem or metadata.get("sem")

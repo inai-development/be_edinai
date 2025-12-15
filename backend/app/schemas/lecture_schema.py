@@ -80,6 +80,8 @@ class SharedLectureSummary(BaseModel):
     std: Optional[str] = None
     subject: Optional[str] = None
     lecture_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    lecture_url: Optional[str] = None
     last_shared_at: Optional[datetime] = None
 
 class AnswerResponse(BaseModel):
