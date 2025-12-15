@@ -85,6 +85,7 @@ class SharedLectureSummary(BaseModel):
     thumbnail_url: Optional[str] = None
     duration_seconds: Optional[int] = None
     last_shared_at: Optional[datetime] = None
+    cover_photo_url: Optional[str] = None
 
 class AnswerResponse(BaseModel):
     answer: Optional[str]

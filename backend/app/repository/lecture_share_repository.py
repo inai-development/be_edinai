@@ -203,6 +203,7 @@ COALESCE(
             spv.subject,
             spv.video_url AS lecture_url,
             spv.thumbnail_url AS thumbnail_url,
+            spv.thumbnail_url AS cover_photo_url,
             spv.duration_seconds AS duration_seconds,
             spv.created_at AS last_shared_at,
             spv.created_at AS lecture_updated_at
