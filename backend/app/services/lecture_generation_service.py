@@ -6,7 +6,7 @@ Handles all lecture content generation, math detection, and prompting
 import asyncio
 import json
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from groq import Groq
 
 
@@ -190,6 +190,7 @@ def create_lecture_prompt(*, text: str, language: str, duration: int, style: str
             "2. All explanations in simple Gujarati for std 5-12.\n"
             "3. Use short, clear sentences.\n"
             "4. Keep tone friendly and student-like.\n"
+            "5. If the chapter text is in another language/script, translate it into Gujarati before using it.\n"
         ),
         "Hindi": (
             "LANGUAGE RULES:\n"
@@ -197,16 +198,48 @@ def create_lecture_prompt(*, text: str, language: str, duration: int, style: str
             "2. All explanations in simple Hindi for std 5-12.\n"
             "3. Use short, clear sentences.\n"
             "4. Keep tone friendly and engaging.\n"
+            "5. If the chapter text is in another language/script, translate it into Hindi before using it.\n"
         ),
         "English": (
             "LANGUAGE RULES:\n"
             "1. Use simple, student-friendly English.\n"
             "2. Clear explanations for std 5-12.\n"
             "3. Keep tone engaging and easy to understand.\n"
+            "4. Translate any non-English source material into English while keeping meaning intact.\n"
         )
     }
     
     lang_instruction = language_instructions.get(language, f"Generate in {language}")
+    
+    language_enforcement_rules = {
+        "Hindi": (
+            "LANGUAGE ENFORCEMENT (Hindi):\n"
+            "1. Titles, bullets, narration, subnarrations, and questions must be entirely in Hindi (Devanagari script).\n"
+            "2. Translate Gujarati or any other script into Hindi; never copy-source sentences verbatim unless already Hindi.\n"
+            "3. Only keep universally accepted technical terms in English (e.g., DNA, photosynthesis).\n"
+            "4. Never mix Gujarati script or Romanized Hindi in the output.\n"
+        ),
+        "Gujarati": (
+            "LANGUAGE ENFORCEMENT (Gujarati):\n"
+            "1. Titles, bullets, narration, subnarrations, and questions must be entirely in Gujarati script.\n"
+            "2. Translate Hindi or any other script into Gujarati before writing.\n"
+            "3. Only retain globally accepted English technical terms when unavoidable.\n"
+            "4. Never include Devanagari script or long English sentences in the narration.\n"
+        ),
+        "English": (
+            "LANGUAGE ENFORCEMENT (English):\n"
+            "1. Write every title, narration, bullet, question, and summary in fluent English.\n"
+            "2. Translate Indian language passages into English rather than quoting them.\n"
+            "3. Maintain the same structure and detail while paraphrasing the source.\n"
+        ),
+    }
+    default_enforcement = (
+        f"LANGUAGE ENFORCEMENT ({language}):\n"
+        f"1. Use {language} consistently for titles, narration, bullets, and questions.\n"
+        f"2. Translate source text into {language} instead of copying foreign-language sentences.\n"
+        "3. Keep structure identical to the requested template.\n"
+    )
+    language_enforcement = language_enforcement_rules.get(language, default_enforcement)
     
     # Detect subject type
     is_math = detect_math_content(text)
@@ -264,6 +297,8 @@ def create_lecture_prompt(*, text: str, language: str, duration: int, style: str
 Create a {duration}-minute educational lecture from the provided chapter.
 
 {lang_instruction}
+
+{language_enforcement}
 
 {subject_block}
 
@@ -364,6 +399,7 @@ class GroqService:
     
     def __init__(self, api_key: str) -> None:
         self._client: Optional[Groq] = Groq(api_key=api_key) if api_key else None
+        self._rewrite_cache: Dict[Tuple[str, str], str] = {}
     
     @property
     def configured(self) -> bool:
@@ -502,6 +538,8 @@ class GroqService:
                         "title": slide.get("title", ""),
                         "summary": summary
                     }]
+        
+        await self._enforce_language_output(slides, language)
         
         return {
             "slides": slides,
@@ -1015,6 +1053,103 @@ class GroqService:
                 )
         
         return errors
+
+    async def _enforce_language_output(self, slides: List[Dict[str, Any]], language: str) -> None:
+        """Ensure every slide field respects the requested language."""
+        if not slides or not language:
+            return
+        
+        for slide in slides:
+            for field in ("title", "narration", "question"):
+                value = slide.get(field)
+                if isinstance(value, str) and value.strip():
+                    if not self._is_language_compliant(value, language):
+                        slide[field] = await self._rewrite_text_language(value, language)
+            
+            bullets = slide.get("bullets")
+            if isinstance(bullets, list) and bullets:
+                rewritten_bullets: List[str] = []
+                for bullet in bullets:
+                    if not isinstance(bullet, str) or not bullet.strip():
+                        continue
+                    if self._is_language_compliant(bullet, language):
+                        rewritten_bullets.append(bullet)
+                    else:
+                        rewritten_bullets.append(await self._rewrite_text_language(bullet, language))
+                slide["bullets"] = rewritten_bullets
+            
+            subnarrations = slide.get("subnarrations") or []
+            if isinstance(subnarrations, list):
+                for sub in subnarrations:
+                    if not isinstance(sub, dict):
+                        continue
+                    summary = sub.get("summary")
+                    if isinstance(summary, str) and summary.strip() and not self._is_language_compliant(summary, language):
+                        sub["summary"] = await self._rewrite_text_language(summary, language)
+
+    def _is_language_compliant(self, text: str, language: str) -> bool:
+        """Heuristic check to detect unwanted script mixing."""
+        if not text.strip():
+            return True
+        
+        devanagari = re.compile(r"[\u0900-\u097F]")
+        gujarati = re.compile(r"[\u0A80-\u0AFF]")
+        has_devanagari = bool(devanagari.search(text))
+        has_gujarati = bool(gujarati.search(text))
+        
+        if language == "Hindi":
+            if has_gujarati:
+                return False
+            return has_devanagari or not text.strip()
+        
+        if language == "Gujarati":
+            if has_devanagari:
+                return False
+            return has_gujarati or not text.strip()
+        
+        if language == "English":
+            # Allow English + numerals but reject Indic scripts
+            return not (has_devanagari or has_gujarati)
+        
+        return True
+
+    async def _rewrite_text_language(self, text: str, language: str) -> str:
+        """Use the LLM to translate/match content to the requested language."""
+        normalized = text.strip()
+        if not normalized or not self._client:
+            return text
+        
+        cache_key = (normalized, language)
+        if cache_key in self._rewrite_cache:
+            return self._rewrite_cache[cache_key]
+        
+        system_prompt = f"You are a precise translator who writes perfectly in {language}."
+        user_prompt = (
+            f"Convert the following content into {language}. "
+            f"Preserve meaning, formatting, and approximate length. "
+            f"Return ONLY the converted text without explanations.\n\n"
+            f"CONTENT:\n{normalized}"
+        )
+        
+        try:
+            completion = await asyncio.to_thread(
+                self._client.chat.completions.create,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                model="llama-3.1-8b-instant",
+                temperature=0.0,
+                max_tokens=min(2048, max(400, len(normalized) * 2)),
+            )
+            rewritten = completion.choices[0].message.content.strip()
+            if rewritten:
+                self._rewrite_cache[cache_key] = rewritten
+                return rewritten
+        except Exception as exc:
+            print(f"⚠️ Language rewrite failed: {exc}")
+        
+        return text
     
     def _enforce_minimum_narration(self, slides: List[Dict[str, Any]], language: str) -> None:
         """Pad narrations to satisfy minimum word requirements."""
