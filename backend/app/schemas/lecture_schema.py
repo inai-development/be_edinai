@@ -57,6 +57,7 @@ class LectureSummaryResponse(BaseModel):
     std_slug: Optional[str] = None
     subject_slug: Optional[str] = None
     division_slug: Optional[str] = None
+    bullets: Optional[List[str]] = None
 
 
 class LectureShareRequest(BaseModel):

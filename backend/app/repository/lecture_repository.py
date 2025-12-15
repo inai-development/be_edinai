@@ -454,6 +454,17 @@ async def list_lectures(
             "subject_slug": _slugify(subject_value),
             "division_slug": _slugify(division_value) if division_value else None,
         }
+        slides = record.get("slides") or []
+        bullets: List[str] = []
+        for slide in slides:
+            if not isinstance(slide, dict):
+                continue
+            for bullet in slide.get("bullets") or []:
+                text = (bullet or "").strip()
+                if text:
+                    bullets.append(text)
+
+        summary["bullets"] = bullets
         summaries.append(summary)
 
     return summaries[offset : offset + limit]
