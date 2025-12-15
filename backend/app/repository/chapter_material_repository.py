@@ -147,38 +147,6 @@ def create_chapter_material(
     
     return result if result else {}
 
-def update_chapter_material_overrides(
-    material_id: int,
-    *,
-    chapter_title_override: Optional[str] = None,
-    topic_title_override: Optional[str] = None,
-    video_duration_minutes: Optional[int] = None,
-    video_resolution: Optional[str] = None,
-) -> Dict[str, Any]:
-    updates = {}
-    if chapter_title_override is not None:
-        updates["chapter_title_override"] = chapter_title_override.strip() or None
-    if topic_title_override is not None:
-        updates["topic_title_override"] = topic_title_override.strip() or None
-    if video_duration_minutes is not None:
-        updates["video_duration_minutes"] = max(video_duration_minutes, 0)
-    if video_resolution is not None:
-        updates["video_resolution"] = video_resolution.strip() or None
-
-    if not updates:
-        return {}
-
-    set_clause = ", ".join([f"{k} = %({k})s" for k in updates.keys()])
-    query = f"UPDATE chapter_materials SET {set_clause} WHERE id = %(id)s RETURNING *"
-    updates["id"] = material_id
-
-    with get_pg_cursor() as cur:
-        cur.execute(query, updates)
-        result = cur.fetchone()
-    
-    return result if result else {}
-
-
 def get_chapter_material(material_id: int) -> Optional[Dict[str, Any]]:
     query = "SELECT * FROM chapter_materials WHERE id = %(id)s"
     with get_pg_cursor() as cur:
@@ -398,7 +366,7 @@ def list_chapters_for_selection(
 
 ) -> List[str]:
     query = """
-        SELECT chapter_title_override, chapter_title, chapter_number
+        SELECT chapter_title, chapter_number
         FROM chapter_materials
         WHERE admin_id = %(admin_id)s
         AND LOWER(std) = %(std)s
@@ -413,9 +381,9 @@ def list_chapters_for_selection(
         rows = cur.fetchall()
 
     title_candidates = {
-        (row.get("chapter_title_override") or row.get("chapter_title") or "").strip()
+        (row.get("chapter_title") or "").strip()
         for row in rows
-        if (row.get("chapter_title_override") or row.get("chapter_title"))
+        if row.get("chapter_title")
     }
     if title_candidates:
         return sorted(title_candidates, key=lambda value: value.lower())
@@ -646,10 +614,6 @@ def get_chapter_overview_data(admin_id: int) -> List[Dict[str, Any]]:
             cm.board,
             cm.chapter_title,
             cm.chapter_number,
-            cm.chapter_title_override,
-            cm.topic_title_override,
-            cm.video_duration_minutes,
-            cm.video_resolution,
             cm.file_name,
             cm.file_path,
             cm.file_size,
@@ -826,17 +790,9 @@ def get_chapter_overview_data(admin_id: int) -> List[Dict[str, Any]]:
             except Exception:
                 topics_data = []
 
-            chapter_title = (
-                row["chapter_title_override"]
-                or extracted_chapter_title
-                or row["chapter_title"]
-                or row["chapter_number"]
-            )
-
+            chapter_title = extracted_chapter_title or row["chapter_title"] or row["chapter_number"]
             inferred_topic_title = ""
-            if row.get("topic_title_override"):
-                inferred_topic_title = row["topic_title_override"]
-            elif topics_data:
+            if topics_data:
                 first_topic = topics_data[0]
                 inferred_topic_title = first_topic.get("title") or first_topic.get("name") or ""
 
@@ -876,10 +832,7 @@ def get_chapter_overview_data(admin_id: int) -> List[Dict[str, Any]]:
             if not lecture_topics:
                 lecture_topics = chapter_entry.get("fallback_topics", [])
 
-            lecture_duration = _extract_duration(lecture_data_details)
-            if lecture_duration is None:
-                lecture_duration = row.get("video_duration_minutes") or default_duration
-
+            lecture_duration = _extract_duration(lecture_data_details) or default_duration
             thumbnail_url: Optional[str] = None
             if isinstance(video_info, dict):
                 thumb_candidate = video_info.get("thumbnail") or video_info.get("thumbnail_url") or video_info.get("thumb")
