@@ -184,6 +184,23 @@ def _guess_language_by_script(text: str) -> Optional[str]:
     return best_code
 
 
+def _guess_language_by_highest_ratio(text: str) -> Optional[str]:
+    stripped = text.strip()
+    if not stripped:
+        return None
+
+    best_code: Optional[str] = None
+    best_ratio = 0.0
+
+    for code, spec in LANGUAGE_SPECS.items():
+        ratio = _script_ratio(stripped, pattern=spec["script_pattern"])
+        if ratio > best_ratio:
+            best_code = code
+            best_ratio = ratio
+
+    return best_code if best_ratio > 0.0 else None
+
+
 def read_pdf(pdf_path: Path) -> str:
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF file not found: {pdf_path}")
@@ -1113,13 +1130,26 @@ def extract_topics_from_pdf(pdf_path: Path) -> Dict[str, Any]:
         logger.info("No numbered chapter headings found in PDF")
 
     if not language_code:
-        fallback_language = _select_supported_language(DEFAULT_OCR_LANGUAGE) or "eng"
-        logger.warning(
-            "Language detection failed for %s; falling back to %s for topic extraction.",
-            pdf_path.name,
-            fallback_language,
+        # Re-run language detection on the aggregated PDF text before falling back.
+        language_code = detect_dominant_language(pdf_text)
+
+    if not language_code:
+        language_code = _guess_language_by_highest_ratio(pdf_text)
+
+    if not language_code:
+        fallback_language = _select_supported_language(DEFAULT_OCR_LANGUAGE)
+        if fallback_language:
+            logger.warning(
+                "Language detection failed for %s; falling back to configured default %s for topic extraction.",
+                pdf_path.name,
+                fallback_language,
+            )
+            language_code = fallback_language
+
+    if not language_code:
+        raise RuntimeError(
+            "Unable to determine language for topic extraction. Provide a DEFAULT_OCR_LANGUAGE or ensure the document contains detectable text."
         )
-        language_code = fallback_language
 
     language_spec = _get_language_spec(language_code)
     logger.info(
