@@ -103,6 +103,10 @@ def create_app() -> FastAPI:
     async def root():
         return {"status": True, "message": "Modular backend ready"}
 
+    @app.get("/health", tags=["System"])
+    def health():
+        return {"status": "ok"}
+
     return app
 
 

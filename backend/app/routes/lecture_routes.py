@@ -400,7 +400,7 @@ async def share_lecture_recording(
             "video/x-matroska",
             "application/octet-stream",
         },
-        max_size=500 * 1024 * 1024,
+        max_size=5 * 1024 * 1024 * 1024,
     )
 
     video_url_value = saved["file_path"]
