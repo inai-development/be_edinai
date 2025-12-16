@@ -294,12 +294,11 @@ def get_video_with_engagement(
 
     std_clause = ""
     if std:
-        # params["std"] = std
-        # std_clause = " AND (v.std = %(std)s OR v.std IS NULL)"
+        
         normalized_std = std.strip()
         params["std"] = normalized_std
-        params["std_like"] = f"%{normalized_std}%"
-        std_clause = " AND (v.std = %(std)s OR v.std LIKE %(std_like)s OR v.std IS NULL)"
+        params["std_regex"] = rf"(^|[,\s]){normalized_std}([,\s]|$)"
+        std_clause = " AND (v.std = %(std)s OR v.std ~ %(std_regex)s OR v.std IS NULL)"
 
     query = f"""
         SELECT
@@ -357,8 +356,8 @@ def list_videos_for_student(
         # std_clause = " AND (v.std = %(std)s OR v.std IS NULL)"
         normalized_std = std.strip()
         params["std"] = normalized_std
-        params["std_like"] = f"%{normalized_std}%"
-        std_clause = " AND (v.std = %(std)s OR v.std LIKE %(std_like)s OR v.std IS NULL)"
+        params["std_regex"] = rf"(^|[,\s]){normalized_std}([,\s]|$)"
+        std_clause = " AND (v.std = %(std)s OR v.std ~ %(std_regex)s OR v.std IS NULL)"
 
     query = f"""
         SELECT
@@ -938,7 +937,7 @@ def get_watch_summary(
                 WHERE v.duration_seconds IS NOT NULL
                   AND e.watch_duration_seconds >= v.duration_seconds
             ) AS completed_videos,
-            COUNT(*) AS total_records
+            COUNT(*) FILTER (WHERE e.watch_duration_seconds > 0) AS total_records
         FROM student_portal_video_engagement e
         JOIN student_portal_videos v ON v.id = e.video_id
         WHERE e.enrollment_number = %(enrollment)s
