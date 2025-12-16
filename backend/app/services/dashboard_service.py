@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Any
 from ..repository import (
     dashboard_repository,
     lecture_credit_repository,
+    lecture_share_repository,
     member_repository,
     student_management_repository as roster_repository,
     member_repository,
@@ -591,13 +592,24 @@ def get_member_dashboard(*, member_id: int, admin_id: int, work_type: str) -> Di
             }
         }
     else:  # lecture
+        # Lecture dashboard for a lecture member should reflect real shared lectures.
         total_lectures = dashboard_repository.count_total_lectures(admin_id)
         played_lectures = dashboard_repository.count_played_lectures(admin_id)
         pending_lectures = max(total_lectures - played_lectures, 0)
+        # Reuse the same source of truth as the `/lectures/shared` API so
+        # that the dashboard shows exactly the lectures that have been
+        # shared with students for this admin.
+        shared_lecture_records = lecture_share_repository.list_shared_lectures(
+            admin_id=admin_id,
+            std=None,
+            subject=None,
+        )
+        shared_lecture_count = len(shared_lecture_records)
+        
         return {
             "total_lectures": total_lectures,
             "played_lectures": played_lectures,
-            "shared_lectures": 0,
+            "shared_lectures": shared_lecture_count,
             "pending_lectures": pending_lectures,
             "qa_sessions": 0,
         }
