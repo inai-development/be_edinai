@@ -541,7 +541,7 @@ async def update_roster_student(
         else:
             profile_data = existing_profile
     else:
-        profile_data = portal_repo.create_student_profile(**profile_payload)
+        profile_data = existing_profile
 
     # -------------------------
     # 5) FINAL RESPONSE (ONLY PROFILE)
