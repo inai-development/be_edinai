@@ -82,7 +82,6 @@ def create_app() -> FastAPI:
                 response = await chapter_material_http_exception_handler(request, exc)
             else:
                 raise
-        response = await call_next(request)
         duration = time.time() - start_time
         HTTP_REQUEST_COUNT.labels(
             method=request.method,
