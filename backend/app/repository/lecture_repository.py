@@ -15,6 +15,216 @@ def _slugify(value: Any) -> str:
     """Convert metadata values to slug format for comparisons."""
     return str(value or "").strip().lower().replace(" ", "_")
 
+# Basic Gujarati/Hindi -> Roman transliteration map for search normalization.
+_GUJARATI_ROMAN_MAP = {
+    "અ": "a",
+    "આ": "aa",
+    "ઇ": "i",
+    "ઈ": "ii",
+    "ઉ": "u",
+    "ઊ": "uu",
+    "ઋ": "ri",
+    "એ": "e",
+    "ઐ": "ai",
+    "ઓ": "o",
+    "ઔ": "au",
+    "ઍ": "e",
+    "ઑ": "o",
+    # Consonants
+    "ક": "k",
+    "ખ": "kh",
+    "ગ": "g",
+    "ઘ": "gh",
+    "ઙ": "n",
+    "ચ": "ch",
+    "છ": "chh",
+    "જ": "j",
+    "ઝ": "jh",
+    "ઞ": "n",
+    "ટ": "t",
+    "ઠ": "th",
+    "ડ": "d",
+    "ઢ": "dh",
+    "ણ": "n",
+    "ત": "t",
+    "થ": "th",
+    "દ": "d",
+    "ધ": "dh",
+    "ન": "n",
+    "પ": "p",
+    "ફ": "ph",
+    "બ": "b",
+    "ભ": "bh",
+    "મ": "m",
+    "ય": "y",
+    "ર": "r",
+    "લ": "l",
+    "વ": "v",
+    "શ": "sh",
+    "ષ": "sh",
+    "સ": "s",
+    "હ": "h",
+    "ળ": "l",
+    # Anusvara / chandrabindu / visarga
+    "ઁ": "n",
+    "ં": "n",
+    "ઃ": "h",
+    # Matras
+    "ા": "a",
+    "િ": "i",
+    "ી": "ii",
+    "ુ": "u",
+    "ૂ": "uu",
+    "ૃ": "ri",
+    "ે": "e",
+    "ૈ": "ai",
+    "ો": "o",
+    "ૌ": "au",
+    # Digits
+    "૦": "0",
+    "૧": "1",
+    "૨": "2",
+    "૩": "3",
+    "૪": "4",
+    "૫": "5",
+    "૬": "6",
+    "૭": "7",
+    "૮": "8",
+    "૯": "9",
+    # Hindi Devanagari vowels
+    "अ": "a",
+    "आ": "aa",
+    "इ": "i",
+    "ई": "ii",
+    "उ": "u",
+    "ऊ": "uu",
+    "ऋ": "ri",
+    "ए": "e",
+    "ऐ": "ai",
+    "ओ": "o",
+    "औ": "au",
+    # Hindi Devanagari consonants
+    "क": "k",
+    "ख": "kh",
+    "ग": "g",
+    "घ": "gh",
+    "ङ": "n",
+    "च": "ch",
+    "छ": "chh",
+    "ज": "j",
+    "झ": "jh",
+    "ञ": "n",
+    "ट": "t",
+    "ठ": "th",
+    "ड": "d",
+    "ढ": "dh",
+    "ण": "n",
+    "त": "t",
+    "थ": "th",
+    "द": "d",
+    "ध": "dh",
+    "न": "n",
+    "प": "p",
+    "फ": "ph",
+    "ब": "b",
+    "भ": "bh",
+    "म": "m",
+    "य": "y",
+    "र": "r",
+    "ल": "l",
+    "व": "v",
+    "श": "sh",
+    "ष": "sh",
+    "स": "s",
+    "ह": "h",
+    # Hindi nukta variants (approximate)
+    "क़": "k",    "ख़": "kh",
+    "ग़": "g",    "ज़": "z",
+    "ड़": "d",    "ढ़": "dh",
+    "फ़": "f",    # Hindi diacritics
+    "ँ": "n",
+    "ं": "n",
+    "ः": "h",
+    # Hindi matras
+    "ा": "a",
+    "ि": "i",
+    "ी": "ii",
+    "ु": "u",
+    "ू": "uu",
+    "ृ": "ri",
+    "े": "e",
+    "ै": "ai",
+    "ो": "o",
+    "ौ": "au",
+    # Hindi digits
+    "०": "0",
+    "१": "1",
+    "२": "2",
+    "३": "3",
+    "४": "4",
+    "५": "5",
+    "६": "6",
+    "७": "7",
+    "८": "8",
+    "९": "9",
+}
+
+
+def _normalize_title_for_search(value: Any) -> str:
+    """Normalize lecture titles and queries for flexible search.
+
+    - Converts Gujarati characters to a simple Roman approximation so that
+      WhatsApp-style Roman queries can match Gujarati titles.
+    - Lowercases and removes extra whitespace and punctuation.
+    """
+
+    if value is None:
+        return ""
+
+    text = str(value).strip().lower()
+    if not text:
+        return ""
+
+    parts: List[str] = []
+    for ch in text:
+        if ch in _GUJARATI_ROMAN_MAP:
+            parts.append(_GUJARATI_ROMAN_MAP[ch])
+        elif ch.isalnum():
+            # Keep ASCII letters and digits as-is for Roman text
+            parts.append(ch)
+        elif ch in {" ", "\t", "\n", "_", "-", ".", ",", "/", "|", "(", ")", "[", "]", "{", "}", ":"}:
+            # Normalize various separators to a single space
+            parts.append(" ")
+        # Other characters are ignored for search purposes
+
+    normalized = "".join(parts)
+    # Collapse multiple spaces
+    tokens = [token for token in normalized.split(" ") if token]
+    return " ".join(tokens)
+
+
+def _normalize_title_for_fuzzy_match(value: str) -> str:
+    """Create a looser representation for matching titles.
+
+    This helper removes vowels from tokens so that small differences in
+    transliteration (e.g. Gujarati -> Roman vs WhatsApp spelling) still
+    match on the consonant pattern.
+    """
+
+    if not value:
+        return ""
+
+    vowels = {"a", "e", "i", "o", "u"}
+    tokens: List[str] = []
+    for raw_token in value.split(" "):
+        token = raw_token.strip()
+        if not token:
+            continue
+        stripped = "".join(ch for ch in token if ch not in vowels)
+        if stripped:
+            tokens.append(stripped)
+    return " ".join(tokens)
+
 
 def _sort_key(value: str) -> Tuple[int, str]:
     """Sort numerically when possible, otherwise lexicographically."""
@@ -470,6 +680,133 @@ async def list_lectures(
         summaries.append(summary)
 
     return summaries[offset : offset + limit]
+
+async def search_lectures_by_title(
+    *,
+    query: str,
+    language: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    std: Optional[str] = None,
+    subject: Optional[str] = None,
+    division: Optional[str] = None,
+    admin_id: Optional[int] = None,
+) -> List[Dict[str, Any]]:
+    """Search lectures by title using Gujarati-aware normalization.
+
+    The search is performed in Python to allow matching Gujarati titles against
+    WhatsApp-style Roman queries using `_normalize_title_for_search`.
+    """
+
+    normalized_query = _normalize_title_for_search(query)
+    if not normalized_query:
+        return []
+
+    # Fuzzy representation (vowels stripped) to allow loose transliteration matches
+    fuzzy_query = _normalize_title_for_fuzzy_match(normalized_query)
+
+    with get_pg_cursor() as cur:
+        sql = "SELECT * FROM lecture_gen"
+        params: Dict[str, Any] = {}
+
+        if admin_id is not None:
+            sql += " WHERE admin_id = %(admin_id)s"
+            params["admin_id"] = admin_id
+
+        sql += " ORDER BY created_at DESC"
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+
+    std_filter = _slugify(std) if std else None
+    subject_filter = _slugify(subject) if subject else None
+    division_filter = _slugify(division) if division else None
+    lang_filter = (language or "").lower() if language else None
+
+    results: List[Dict[str, Any]] = []
+    for row in rows:
+        if not row.get("lecture_data"):
+            continue
+        record = _clone_record(row.get("lecture_data"))
+        metadata = record.get("metadata") or {}
+
+        if lang_filter and (record.get("language") or "").lower() != lang_filter:
+            continue
+
+        std_value = metadata.get("std") or metadata.get("class") or row.get("std") or "general"
+        subject_value = metadata.get("subject") or row.get("subject") or "lecture"
+        division_value = metadata.get("division") or metadata.get("section")
+
+        if std_filter and _slugify(std_value) != std_filter:
+            continue
+        if subject_filter and _slugify(subject_value) != subject_filter:
+            continue
+        if division_filter and _slugify(division_value) != division_filter:
+            continue
+
+        title_value = record.get("title") or row.get("lecture_title") or ""
+        normalized_title = _normalize_title_for_search(title_value)
+        if not normalized_title:
+            continue
+
+        # First, try a direct raw substring match to support exact Hindi/Gujarati
+        # script queries matching the stored title.
+        raw_title = str(title_value or "").strip().lower()
+        raw_query = str(query or "").strip().lower()
+
+        if raw_query and raw_query not in raw_title:
+            # If raw match fails, fall back to strict normalized and then fuzzy match.
+            # First try strict substring match on normalized forms (supports partial matches).
+            if normalized_query not in normalized_title:
+                # Fall back to fuzzy consonant-pattern matching for loose transliteration
+                fuzzy_title = _normalize_title_for_fuzzy_match(normalized_title)
+                if fuzzy_query:
+                    any_token_match = False
+                    for token in fuzzy_query.split(" "):
+                        token = token.strip()
+                        if not token:
+                            continue
+                        if token in fuzzy_title:
+                            any_token_match = True
+                            break
+                    if not any_token_match:
+                        continue
+                else:
+                    # No fuzzy query constructed and strict match failed
+                    continue
+
+        summary = {
+            "lecture_id": row.get("lecture_uid"),
+            "title": record.get("title") or row.get("lecture_title"),
+            "language": record.get("language"),
+            "total_slides": record.get("total_slides"),
+            "estimated_duration": record.get("estimated_duration"),
+            "created_at": record.get("created_at"),
+            "fallback_used": record.get("fallback_used", False),
+            "lecture_url": record.get("lecture_url") or row.get("lecture_link"),
+            "cover_photo_url": record.get("cover_photo_url") or row.get("cover_photo_url"),
+            "std": std_value,
+            "subject": subject_value,
+            "division": division_value,
+            "std_slug": _slugify(std_value),
+            "subject_slug": _slugify(subject_value),
+            "division_slug": _slugify(division_value) if division_value else None,
+        }
+
+        slides = record.get("slides") or []
+        bullets: List[str] = []
+        for slide in slides:
+            if not isinstance(slide, dict):
+                continue
+            for bullet in slide.get("bullets") or []:
+                text = (bullet or "").strip()
+                if text:
+                    bullets.append(text)
+
+        summary["bullets"] = bullets
+        results.append(summary)
+
+    return results[offset : offset + limit]
+
 
 
 async def list_played_lectures(admin_id: Optional[int] = None) -> List[Dict[str, Any]]:

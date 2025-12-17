@@ -43,7 +43,6 @@ from app.repository.chapter_material_repository import (
     get_dashboard_stats,
     get_chapter_overview_data,
     _load_topics_path,
-    list_standards_for_admin,
     load_material_topics,
     persist_material_topics,
     save_extracted_topics_files,
@@ -154,7 +153,6 @@ async def get_chapter_filters(
     db: Session = Depends(get_db),
 ) -> ResponseBase:
     admin_id = _resolve_admin_id(current_user)
-    subjects: List[str] = []
     overview_entries = get_chapter_overview_data(admin_id) or []
     
     generated_entries = [
@@ -164,7 +162,7 @@ async def get_chapter_filters(
     ]
 
     standards = _unique_sorted_strings([entry.get("std") for entry in generated_entries])
-    subjects = List[str] = []
+    subjects: List[str] = []
     chapter_options: List[str] = []
     selected_chapter = chapter or chapter_alias
 
@@ -233,7 +231,7 @@ async def get_chapter_filters(
         )
 
     response_data = {
-        "standards": [],
+        "standards": standards,
         "subjects": subjects,
         "chapter": chapter_options,
         "selected_std": std,
