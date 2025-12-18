@@ -485,6 +485,10 @@ def _build_lecture_config_response(
     if selected_duration not in resolved_duration_options:
         selected_duration = resolved_duration_options[-1]
 
+    default_model = getattr(settings, "default_lecture_model", None)
+    if default_model not in SUPPORTED_MODELS:
+        default_model = SUPPORTED_MODELS[0]
+
     return {
         "selected_duration": selected_duration,
         "duration_options": resolved_duration_options,
