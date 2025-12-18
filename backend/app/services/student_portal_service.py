@@ -320,9 +320,12 @@ def get_profile_status(enrollment_number: str) -> Dict[str, object]:
 
     prefill = None
     if roster_entry:
+        middle_name= (roster_entry.get("middle_name") or "").strip()
+        if not middle_name and profile is not None:
+            middle_name = (profile.get("middle_name") or "").strip()
         prefill = {
             "first_name": roster_entry.get("first_name", ""),
-            "middle_name": "",
+            "middle_name": middle_name,
             "last_name": roster_entry.get("last_name") or "",
             "class_stream": roster_entry.get("std", ""),
             "division": roster_entry.get("division", ""),

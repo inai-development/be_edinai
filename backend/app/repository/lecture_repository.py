@@ -808,7 +808,6 @@ async def search_lectures_by_title(
     return results[offset : offset + limit]
 
 
-
 async def list_played_lectures(admin_id: Optional[int] = None) -> List[Dict[str, Any]]:
     """Return lectures which have a play_count greater than zero."""
     query = "SELECT * FROM lecture_gen"

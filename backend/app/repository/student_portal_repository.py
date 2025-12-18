@@ -98,7 +98,7 @@ def _row_to_profile(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
 
 def get_roster_entry(enrollment_number: str) -> Optional[Dict[str, Any]]:
     query = (
-        "SELECT admin_id, enrollment_number, first_name, last_name, std, division, auto_password "
+        "SELECT admin_id, enrollment_number, first_name,middle_name, last_name, std, division, auto_password "
         "FROM student_roster_entries "
         "WHERE LOWER(TRIM(enrollment_number)) = LOWER(TRIM(%(enrollment_number)s)) LIMIT 1"
     )
