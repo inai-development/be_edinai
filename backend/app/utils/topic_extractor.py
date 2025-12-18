@@ -66,15 +66,18 @@ logger = logging.getLogger("uvicorn.error").getChild("topic_extractor")
 
 DEFAULT_OCR_LANGUAGE = os.getenv("DEFAULT_OCR_LANGUAGE", "")
 GROQ_MODEL = os.getenv("GROQ_TOPIC_MODEL", "openai/gpt-oss-120b")
-GROQ_BACKUP_MODEL = os.getenv("GROQ_BACKUP_MODEL", "openai/gpt-oss-safeguard-20b")
+GROQ_BACKUP_MODEL = os.getenv("GROQ_BACKUP_MODEL", "llama-3.3-70b-versatile")
 MAX_INPUT_CHARS = int(os.getenv("GROQ_PROMPT_CHAR_LIMIT", "9000"))
 GROQ_MAX_COMPLETION_TOKENS = int(os.getenv("GROQ_MAX_COMPLETION_TOKENS", "6000"))
 TOPIC_PAGES_PER_CHUNK = int(os.getenv("TOPIC_PAGES_PER_CHUNK", "1"))
 
 TOPIC_EXTRACTION_PROMPT_TEMPLATE = (
-    "Read the PDF and answer in  {language_label}. "
-    "do not give me answer outof pdf and topic and subtopic."
-    "give it chapter wise."
+    "You are given the extracted text of a textbook PDF below. "
+    "Use only that text and answer in {language_label}. "
+    "Do not ask for uploads or mention that you need the PDF; you already have the content. "
+    "Do not apologize, refuse, or say you cannot complete the task. "
+    "Do not give any information that is not present in the provided text. "
+    "Return the output chapter wise. "
     "Identify the main textbook topics as numbered items (1., 2., 3., ...). "
     "If a topic has subtopics, list them as bullet points under that topic. "
     "Do not create a generic topic such as 'Topics' or 'All Topics'; instead, make every real chapter/topic a main numbered item. "
@@ -85,9 +88,9 @@ TOPIC_EXTRACTION_PROMPT_TEMPLATE = (
     "1. Topic Title\n"
     "- Subtopic Title: narration text covering all relevant sentences\n"
     "- Another Subtopic: narration text (continue as needed).\n"
-    "If a topic has no subtopics, place the narration directly on the line after the numbered topic."
+    "If a topic has no subtopics, place the narration directly on the line after the numbered topic. "
+    "If the provided text does not contain enough details for a topic or subtopic, write 'Information not available in provided text.' instead of apologizing."
 )
-
 LANGUAGE_SPECS: Dict[str, Dict[str, Any]] = {
     "guj": {
         "label": "ગુજરાતી",
@@ -131,6 +134,18 @@ GENERIC_TOPIC_TITLES = {
 
 
 PAGE_MARKER_PATTERN = re.compile(r"\n--- Page (?P<number>\d+) ---\n")
+
+PLACEHOLDER_STRINGS = {
+    "information not available in provided text.",
+}
+
+
+def _strip_placeholder(text: str) -> str:
+    normalized = (text or "").strip()
+    if normalized.casefold() in PLACEHOLDER_STRINGS:
+        return ""
+    return normalized
+
 
 
 def _select_supported_language(code: Optional[str]) -> Optional[str]:
@@ -214,6 +229,9 @@ def _filter_text_by_language(text: str, *, spec: Dict[str, Any]) -> str:
 
 
 def _prepare_excerpt(text: str, limit: int = MAX_INPUT_CHARS) -> str:
+    if limit is None or limit <= 0:
+        return text
+
     if len(text) <= limit:
         return text
     return text[:limit]
@@ -943,7 +961,7 @@ def parse_topics_text(topics_text: str) -> List[Dict[str, Any]]:
             return ""
         cleaned = PAGE_REF_PATTERN.sub("", text)
         cleaned = re.sub(r"\s+", " ", cleaned)
-        return cleaned.strip()
+        return _strip_placeholder(cleaned)
 
     for raw_line in topics_text.splitlines():
         line = raw_line.strip()
@@ -1005,7 +1023,8 @@ def parse_topics_text(topics_text: str) -> List[Dict[str, Any]]:
 
         summary_text = topic.get("summary", "").strip()
         summary_text = PAGE_REF_PATTERN.sub("", summary_text)
-        topic["summary"] = re.sub(r"\s+", " ", summary_text)
+        summary_text = re.sub(r"\s+", " ", summary_text)
+        topic["summary"] = _strip_placeholder(summary_text)
 
         cleaned_subtopics: List[Dict[str, str]] = []
         seen_keys = set()
