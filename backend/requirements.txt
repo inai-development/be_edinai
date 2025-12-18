@@ -102,3 +102,4 @@ gunicorn==22.0.0
 google-cloud-vision
 prometheus-client
 google-cloud-storage
+redis
