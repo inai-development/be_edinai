@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 
 from pydantic import Field, field_validator, PostgresDsn, validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -113,6 +113,31 @@ class Settings(BaseSettings):
         env="GROQ_API_KEY",
         description="API key for Groq AI service",
     )
+
+    topic_extract_max_workers: int = Field(1, env="TOPIC_EXTRACT_MAX_WORKERS")
+    topic_extract_queue_limit: int = Field(0, env="TOPIC_EXTRACT_QUEUE_LIMIT")
+    topic_extract_queue_timeout_seconds: int = Field(
+        0,
+        env="TOPIC_EXTRACT_QUEUE_TIMEOUT_SECONDS",
+    )
+    topic_extract_queue_backend: Literal["memory", "redis"] = Field(
+        "memory",
+        env="TOPIC_EXTRACT_QUEUE_BACKEND",
+    )
+    topic_extract_queue_poll_interval_ms: int = Field(
+        500,
+        env="TOPIC_EXTRACT_QUEUE_POLL_INTERVAL_MS",
+    )
+    topic_extract_queue_lease_seconds: int = Field(
+        900,
+        env="TOPIC_EXTRACT_QUEUE_LEASE_SECONDS",
+    )
+    redis_url: Optional[str] = Field(None, env="REDIS_URL")
+    redis_host: str = Field("localhost", env="REDIS_HOST")
+    redis_port: int = Field(6379, env="REDIS_PORT")
+    redis_db: int = Field(0, env="REDIS_DB")
+    redis_password: Optional[str] = Field(None, env="REDIS_PASSWORD")
+    redis_ssl: bool = Field(False, env="REDIS_SSL")
 
     # Final model_config (server env file)
     model_config = SettingsConfigDict(

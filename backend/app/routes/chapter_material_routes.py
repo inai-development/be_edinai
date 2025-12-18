@@ -73,6 +73,11 @@ from app.utils.s3_file_handler import (
     get_s3_service,
 )
 from app.services.lecture_service import LectureService
+from app.services.topic_extract_queue import (
+    topic_extraction_queue,
+    TopicExtractionQueueFullError,
+    TopicExtractionQueueTimeoutError,
+)
 from app.utils.dependencies import admin_required, get_current_user
 from groq import Groq
 
@@ -1577,7 +1582,25 @@ async def extract_topics_from_materials(
                             continue
 
                     # Extract topics
-                    extraction = extract_topics_from_pdf(Path(material_file_path))
+                    # Extract topics with queue management to prevent server overload
+                    try:
+                        async with topic_extraction_queue.acquire():
+                            extraction = await asyncio.to_thread(
+                                extract_topics_from_pdf,
+                                Path(material_file_path),
+                            )
+                    except TopicExtractionQueueFullError:
+                        logger.warning("Topic extraction queue is full for material %s", material_id)
+                        entry["error"] = "Server is busy processing other topic extractions. Please try again shortly."
+                        entry["error_type"] = "QUEUE_FULL"
+                        topics_by_material.append(entry)
+                        continue
+                    except TopicExtractionQueueTimeoutError:
+                        logger.warning("Topic extraction queue timed out for material %s", material_id)
+                        entry["error"] = "Timed out while waiting for topic extraction. Please retry later."
+                        entry["error_type"] = "QUEUE_TIMEOUT"
+                        topics_by_material.append(entry)
+                        continue
                     if not extraction.get("success", True):
                         entry["error"] = extraction.get("error") or "No text could be extracted from the PDF."
                         entry["error_type"] = extraction.get("error_type") or "NO_TEXT_EXTRACTED"
