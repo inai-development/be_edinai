@@ -15,6 +15,20 @@ def _slugify(value: Any) -> str:
     """Convert metadata values to slug format for comparisons."""
     return str(value or "").strip().lower().replace(" ", "_")
 
+
+def _text_or(value: Any, *, default: Optional[str] = None) -> Optional[str]:
+    """Return a clean string representation or the provided default."""
+    if value is None:
+        return default
+    if isinstance(value, str):
+        text = value.strip()
+        return text if text else default
+    try:
+        text = str(value).strip()
+    except Exception:
+        return default
+    return text if text else default
+
 # Basic Gujarati/Hindi -> Roman transliteration map for search normalization.
 _GUJARATI_ROMAN_MAP = {
     "અ": "a",
@@ -649,8 +663,12 @@ async def list_lectures(
         if division_filter and _slugify(division_value) != division_filter:
             continue
 
+        lecture_uid = _text_or(row.get("lecture_uid")) or _text_or(record.get("lecture_id"))
+        if not lecture_uid:
+            continue
+
         summary = {
-            "lecture_id": row.get("lecture_uid"),
+            "lecture_id": lecture_uid,
             "title": record.get("title") or row.get("lecture_title") or "Untitled lecture",
             "language": record.get("language"),
             "total_slides": record.get("total_slides"),
