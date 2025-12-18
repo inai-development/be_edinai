@@ -625,7 +625,7 @@ async def update_roster_student(
 
     if not updated_roster:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_404_NOT_FOUND,     
             detail="Student not found in roster"
         )
 
