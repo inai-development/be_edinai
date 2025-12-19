@@ -295,7 +295,6 @@ async def share_lecture_recording(
 
     resolved_subject = share_service._resolve_subject(
         request_subject=None,
-        request_std=normalized_std or "",
         row=lecture_row,
         record=lecture_record,
     )
