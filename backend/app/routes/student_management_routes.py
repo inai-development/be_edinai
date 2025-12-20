@@ -16,6 +16,8 @@ from openpyxl import Workbook, load_workbook
 from ..repository import student_portal_repository as portal_repo
 from ..repository import student_management_repository as roster_repo
 
+from ..services import student_portal_service
+
 from ..schemas import ResponseBase, WorkType
 from ..schemas.student_portal_schema import StudentProfileCreate, StudentProfileResponse
 from ..schemas.student_portal_schema import StudentProfileCreate, StudentProfileResponse
@@ -866,6 +868,55 @@ async def list_student_filters(
         message="Class and division filters fetched successfully",
         data=filters,
     )
+
+@router.get("/lectures", response_model=ResponseBase)
+async def list_member_lectures(
+    current_user: dict = Depends(member_required(WorkType.STUDENT)),
+) -> ResponseBase:
+    """List all lectures for the current member's admin.
+
+    Response is suitable for the Student Management "Lecture List" UI and
+    returns fields: lecture_title, subject, chapter, date, class.
+    """
+
+    # Minimal context for student_portal_service; std=None -> no class filter
+    context = {
+        "admin_id": current_user["admin_id"],
+        "enrollment_number": None,
+        "std": None,
+        "division": None,
+        "first_name": "",
+        "last_name": "",
+        "photo_path": None,
+    }
+
+    payload = student_portal_service.list_all_lectures(current_context=context)
+    return ResponseBase(status=True, message="Lectures fetched successfully", data=payload)
+
+
+@router.get("/watched-lectures/cards", response_model=ResponseBase)
+async def list_watched_lecture_cards_for_student(
+    enrollment_number: str = Query(..., min_length=3, max_length=32),
+    current_user: dict = Depends(member_required(WorkType.STUDENT)),
+) -> ResponseBase:
+    """Return watched-lecture cards for a specific student enrollment.
+
+    This is an admin/member-side helper that proxies to the student portal
+    service while enforcing that the requested student belongs to the same
+    admin (school) as the current user.
+    """
+
+    normalized = enrollment_number.strip()
+    if not normalized:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Enrollment number required")
+
+    # Get the student's roster context; this will 404 if student not present
+    context = student_portal_service.get_roster_context(normalized)
+
+    # Directly fetch watched-lecture cards for this student
+    payload = student_portal_service.list_watched_lecture_cards(current_context=context)
+    return ResponseBase(status=True, message="Watched lectures fetched successfully", data=payload)
+
 @router.get("/subjects", response_model=ResponseBase)
 async def list_class_subjects(
     class_filter: Optional[str] = Query(default=None, alias="class_filter"),
