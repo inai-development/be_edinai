@@ -1223,6 +1223,50 @@ async def create_chatbot_entry(
         row = cur.fetchone()
     return row or payload
 
+async def list_chatbot_entries_for_lecture(lecture_id: str) -> List[Dict[str, Any]]:
+    """Return all chatbot Q&A entries for a given lecture_id."""
+    with get_pg_cursor() as cur:
+        cur.execute(
+            """
+            SELECT
+                id,
+                lecture_id,
+                question,
+                response_text,
+                audio_url,
+                language,
+                extra_data,
+                created_at,
+                updated_at
+            FROM lecture_chatbot
+            WHERE lecture_id = %(lecture_id)s
+            ORDER BY created_at ASC, id ASC
+            """,
+            {"lecture_id": lecture_id},
+        )
+        rows = cur.fetchall()
+
+    entries: List[Dict[str, Any]] = []
+    for row in rows:
+        entry = dict(row)
+        raw_extra = entry.get("extra_data")
+        if isinstance(raw_extra, str):
+            try:
+                entry["extra_data"] = json.loads(raw_extra)
+            except Exception:
+                entry["extra_data"] = {}
+        entries.append(entry)
+
+    return entries
+
+
+
+
+
+
+
+
+
 class LectureRepository:
     """Compatibility wrapper preserving the legacy repository interface."""
 
@@ -1334,3 +1378,5 @@ class LectureRepository:
             extra_data=extra_data,
         )
 
+    async def list_chatbot_entries_for_lecture(self, lecture_id: str) -> List[Dict[str, Any]]:
+        return await list_chatbot_entries_for_lecture(lecture_id)

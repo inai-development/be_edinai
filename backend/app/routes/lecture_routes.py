@@ -24,6 +24,8 @@ from app.schemas.lecture_schema import (
     LectureShareDeleteResponse,
     SharedLectureSummary,
     AnswerResponse,
+    LectureChatEntryResponse,
+    LectureChatListResponse,
     ErrorResponse,
     GenerationStatus,
     LectureListResponse,
@@ -868,6 +870,88 @@ async def ask_question(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error processing question: {str(e)}"
         )
+
+
+
+@router.get(
+    "/{lecture_id}/qa",
+    response_model=LectureChatListResponse,
+    summary="Get Q&A chat history for a lecture",
+    description="Return chatbot question-answer interactions for a lecture from the lecture_chatbot table",
+)
+async def get_lecture_qa_history(
+    lecture_id: str,
+    repository: LectureRepository = Depends(get_repository),
+) -> LectureChatListResponse:
+    """Fetch all chatbot Q&A entries for the specified lecture.
+
+    - **lecture_id**: Lecture identifier whose Q&A history should be returned
+    """
+    try:
+        exists = await repository.lecture_exists(lecture_id)
+        if not exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Lecture {lecture_id} not found",
+            )
+
+        entries = await repository.list_chatbot_entries_for_lecture(lecture_id)
+        chat_items = [LectureChatEntryResponse(**entry) for entry in entries]
+        return LectureChatListResponse(
+            status=True,
+            message="Lecture Q&A fetched successfully",
+            data=chat_items,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching lecture Q&A: {str(e)}",
+        )
+
+@router.get(
+    "/{lecture_id}/qa/chat",
+    response_model=LectureChatListResponse,
+    summary="Get Q&A chat history for a lecture",
+    description="Return chatbot question-answer interactions for a lecture from the lecture_chatbot table",
+)
+async def get_lecture_qa_chat_history(
+    lecture_id: str,
+    repository: LectureRepository = Depends(get_repository),
+) -> LectureChatListResponse:
+    """Fetch all chatbot Q&A entries for the specified lecture.
+
+    - **lecture_id**: Lecture identifier whose Q&A history should be returned
+    """
+    try:
+        exists = await repository.lecture_exists(lecture_id)
+        if not exists:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Lecture {lecture_id} not found",
+            )
+
+        entries = await repository.list_chatbot_entries_for_lecture(lecture_id)
+        chat_items = [LectureChatEntryResponse(**entry) for entry in entries]
+        return LectureChatListResponse(
+            status=True,
+            message="Lecture Q&A fetched successfully",
+            data=chat_items,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching lecture Q&A: {str(e)}",
+        )
+
+
+
+
+
+
 # ============================================================================
 # SLIDE MANAGEMENT ENDPOINTS
 # ============================================================================

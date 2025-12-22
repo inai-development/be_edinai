@@ -99,6 +99,23 @@ class AnswerResponse(BaseModel):
     edited_content: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
 
+class LectureChatEntryResponse(BaseModel):
+    id: int
+    lecture_id: str
+    question: Optional[str] = None
+    response_text: Optional[str] = None
+    audio_url: Optional[str] = None
+    language: Optional[str] = None
+    extra_data: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class LectureChatListResponse(BaseModel):
+    status: bool
+    message: str
+    data: List[LectureChatEntryResponse]
+
 
 class ErrorResponse(BaseModel):
     status: str
@@ -144,6 +161,8 @@ __all__ = [
     "LectureShareRequest",
     "LectureShareResponse",
     "LectureShareDeleteResponse",
+    "LectureChatEntryResponse",
+    "LectureChatListResponse",
     "SharedLectureSummary",
     "AnswerResponse",
     "ErrorResponse",
