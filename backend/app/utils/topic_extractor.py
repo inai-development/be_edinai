@@ -69,7 +69,7 @@ GROQ_MODEL = os.getenv("GROQ_TOPIC_MODEL", "openai/gpt-oss-120b")
 GROQ_BACKUP_MODEL = os.getenv("GROQ_BACKUP_MODEL", "llama-3.3-70b-versatile")
 MAX_INPUT_CHARS = int(os.getenv("GROQ_PROMPT_CHAR_LIMIT", "9000"))
 GROQ_MAX_COMPLETION_TOKENS = int(os.getenv("GROQ_MAX_COMPLETION_TOKENS", "6000"))
-TOPIC_PAGES_PER_CHUNK = int(os.getenv("TOPIC_PAGES_PER_CHUNK", "1"))
+TOPIC_PAGES_PER_CHUNK = int(os.getenv("TOPIC_PAGES_PER_CHUNK", "3"))
 
 TOPIC_EXTRACTION_PROMPT_TEMPLATE = (
     "You are given the extracted text of a textbook PDF below. "
@@ -79,17 +79,20 @@ TOPIC_EXTRACTION_PROMPT_TEMPLATE = (
     "Do not give any information that is not present in the provided text. "
     "Return the output chapter wise. "
     "Identify the main textbook topics as numbered items (1., 2., 3., ...). "
-    "If a topic has subtopics, list them as bullet points under that topic. "
+    "Derive numbered topics only from explicit headings or clearly signposted chapter titles in the provided text. "
+    "Never invent or merge topics that are not present. Limit the list to the primary chapters actually found (maximum 12). "
+    "When the source uses numbering like '1.1' or '1.1.1', interpret them as sub-sections of the nearest parent and summarize them as bullet subtopics under that parent topic. "
+    "Every numbered topic must include one or more bullet subtopics supported by sentences from the same section; if no supporting text exists, omit that topic entirely. "
     "Do not create a generic topic such as 'Topics' or 'All Topics'; instead, make every real chapter/topic a main numbered item. "
-    "For each subtopic, include a clear narration using the original textbook sentences as much as possible, "
+    "For each subtopic, include a concise narration using the original textbook sentences as much as possible, "
     "but remove page numbers or page references (for example: 'Page 12', 'p. 12'). Avoid copying header/footer text. "
     "Do not wrap titles in Markdown markers such as ** or ##. "
     "Use this exact layout:\n"
     "1. Topic Title\n"
     "- Subtopic Title: narration text covering all relevant sentences\n"
     "- Another Subtopic: narration text (continue as needed).\n"
-    "If a topic has no subtopics, place the narration directly on the line after the numbered topic. "
-    "If the provided text does not contain enough details for a topic or subtopic, write 'Information not available in provided text.' instead of apologizing."
+    "Only output subtopics with real supporting narration; never use placeholders such as 'Information not available in provided text.'. "
+    "If the provided text does not contain sufficient detail for a specific chapter, skip that chapter instead of filling it with generic text."
 )
 LANGUAGE_SPECS: Dict[str, Dict[str, Any]] = {
     "guj": {
@@ -935,8 +938,12 @@ def parse_topics_text(topics_text: str) -> List[Dict[str, Any]]:
     topics: List[Dict[str, Any]] = []
     current_topic: Optional[Dict[str, Any]] = None
     current_subtopic: Optional[Dict[str, Any]] = None
+    last_main_topic: Optional[Dict[str, Any]] = None
 
-    topic_pattern = re.compile(r"^(\d+)([\).\-:]|\s)+")
+    # Capture full numeric prefixes like "3", "3.4", "3.4.1" etc.
+    # This ensures depth is computed correctly so multi-level numbers
+    # are treated as subtopics under their parent instead of main topics.
+    topic_pattern = re.compile(r"^(?P<number>\d+(?:\.\d+)*)(?:[\).\-:]|\s)+")
 
     def _split_subtopic(text: str) -> Tuple[str, str]:
         cleaned = text.strip()
@@ -971,19 +978,42 @@ def parse_topics_text(topics_text: str) -> List[Dict[str, Any]]:
 
         number_match = topic_pattern.match(line)
         if number_match:
-            title = topic_pattern.sub("", line).strip()
+            number = number_match.group("number")
+            title = line[number_match.end():].strip()
             if not title:
                 title = line.strip()
 
             title = _clean_title(title)
+            depth = number.count(".") + 1
 
-            current_topic = {
-                "title": title,
-                "summary": "",
-                "subtopics": [],
+            if depth == 1:
+                current_topic = {
+                    "title": title,
+                    "summary": "",
+                    "subtopics": [],
+                }
+                topics.append(current_topic)
+                last_main_topic = current_topic
+                current_subtopic = None
+                continue
+
+            parent_topic = last_main_topic or current_topic
+            if parent_topic is None:
+                parent_topic = {
+                    "title": "",
+                    "summary": "",
+                    "subtopics": [],
+                }
+                topics.append(parent_topic)
+                last_main_topic = parent_topic
+
+            subtopic_title = title
+            current_subtopic = {
+                "title": subtopic_title,
+                "narration": "",
             }
-            topics.append(current_topic)
-            current_subtopic = None
+            parent_topic.setdefault("subtopics", []).append(current_subtopic)
+            current_topic = parent_topic
             continue
 
         if line[0] in {"-", "•", "*"} and current_topic:

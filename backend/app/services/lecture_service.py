@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import logging
+import shutil
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-from uuid import uuid4
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
@@ -159,11 +160,26 @@ class LectureService:
     async def get_class_subject_filters(self) -> Dict[str, Any]:
         return await self._repository.get_class_subject_filters()
 
-    async def _attach_slide_audio(self, record: Dict[str, Any]) -> Dict[str, Any]:
+    async def _attach_slide_audio(
+        self,
+        record: Dict[str, Any],
+        *,
+        force_regeneration: bool = False,
+    ) -> Dict[str, Any]:
+        """Ensure each slide has up-to-date audio, optionally forcing regeneration."""
         lecture_id = str(record.get("lecture_id") or "").strip()
         slides: List[Dict[str, Any]] = record.get("slides") or []
         if not lecture_id or not slides:
             return self._sanitize_audio_metadata(record)
+
+        if force_regeneration:
+            audio_dir = self._audio_storage_root / lecture_id / "audio"
+            try:
+                if audio_dir.exists():
+                    shutil.rmtree(audio_dir)
+                    logger.info("Cleared existing audio directory for lecture %s", lecture_id)
+            except OSError as exc:
+                logger.warning("Failed to clean audio directory for %s: %s", lecture_id, exc)
 
         language = record.get("language", "English")
         voice_model = (record.get("metadata") or {}).get("model")
@@ -182,6 +198,32 @@ class LectureService:
             filename = f"slide-{slide.get('number') or index}.mp3"
             existing_file = self._audio_storage_root / lecture_id / "audio" / filename
 
+            must_regenerate_audio = force_regeneration or not existing_file.is_file()
+
+            if must_regenerate_audio:
+                audio_path = await self._tts_service.synthesize_text(
+                    lecture_id=lecture_id,
+                    text=tts_text,
+                    language=language,
+                    filename=filename,
+                    subfolder="audio",
+                    model=voice_model,
+                )
+
+                if not audio_path:
+                    logger.error("Failed to generate audio for slide %d", slide.get('number', index))
+                    continue
+
+                # Remove audio_version - we don't need versioning
+                slide.pop("audio_version", None)
+                logger.info("Slide audio generated: %s", filename)
+                updated = True
+            else:
+                # Remove audio_version for existing files too
+                slide.pop("audio_version", None)
+                logger.info("Slide audio ready (existing): %s", filename)
+
+            # Build URLs WITHOUT version parameter
             audio_url = self._build_audio_url(lecture_id, filename)
             audio_download_url = self._build_audio_download_url(lecture_id, filename)
 
@@ -190,26 +232,6 @@ class LectureService:
 
             slide["audio_url"] = audio_url
             slide["audio_download_url"] = audio_download_url
-
-            if existing_file.is_file():
-                logger.info("Slide audio ready (existing): %s", slide["audio_url"])
-                continue
-
-            audio_path = await self._tts_service.synthesize_text(
-                lecture_id=lecture_id,
-                text=tts_text,
-                language=language,
-                filename=filename,
-                subfolder="audio",
-                model=voice_model,
-            )
-
-            if not audio_path:
-                logger.error("Failed to generate audio for slide %d", slide.get('number', index))
-                continue
-
-            logger.info("Slide audio generated: %s", slide["audio_url"])
-            updated = True
 
         if not (updated or metadata_changed):
             return self._sanitize_audio_metadata(record)
@@ -234,13 +256,27 @@ class LectureService:
         
         return self._sanitize_audio_metadata(record)
 
-    def _build_audio_url(self, lecture_id: str, filename: str, *, subfolder: str = "audio") -> str:
+    def _build_audio_url(
+        self,
+        lecture_id: str,
+        filename: str,
+        *,
+        subfolder: str = "audio",
+    ) -> str:
+        """Build audio URL WITHOUT version parameter."""
         relative_url = f"/chapter-materials/chapter_lecture/{subfolder}/{lecture_id}/{filename}"
         if self._public_base_url:
             return f"{self._public_base_url}{relative_url}"
         return relative_url
 
-    def _build_audio_download_url(self, lecture_id: str, filename: str, *, subfolder: str = "audio") -> str:
+    def _build_audio_download_url(
+        self,
+        lecture_id: str,
+        filename: str,
+        *,
+        subfolder: str = "audio",
+    ) -> str:
+        """Build download URL WITHOUT version parameter."""
         relative_url = f"/chapter-materials/chapter_lecture/{subfolder}/{lecture_id}/{filename}/download"
         if self._public_base_url:
             return f"{self._public_base_url}{relative_url}"

@@ -33,6 +33,7 @@ from app.schemas.lecture_schema import (
 from app.repository.lecture_repository import LectureRepository
 from app.repository import student_portal_video_repository
 from app.services.lecture_generation_service import GroqService
+from app.services.lecture_service import LectureService
 from app.services.lecture_share_service import LectureShareService
 from app.schemas.admin_schema import WorkType
 from app.utils.dependencies import admin_or_lecture_member, get_current_user, member_required
@@ -1217,6 +1218,7 @@ async def regenerate_lecture(
     duration: Optional[int] = None,
     repository: LectureRepository = Depends(get_repository),
     groq_service: GroqService = Depends(get_groq_service),
+    db: Session = Depends(get_db),
 ) -> LectureResponse:
     """
     Regenerate a lecture with new content.
@@ -1233,7 +1235,26 @@ async def regenerate_lecture(
         # Use provided params or fall back to originals
         new_language = language or original.get("language", "English")
         new_duration = duration or original.get("requested_duration", 30)
-        
+    
+         # CRITICAL: Delete ALL existing audio files BEFORE regeneration
+        settings = get_settings()
+        default_storage = str(Path(__file__).parent.parent.parent / "storage" / "chapter_lectures")
+        storage_root = getattr(settings, "chapter_lecture_storage_root", None) or default_storage
+        audio_dir = Path(storage_root) / lecture_id / "audio"
+        if audio_dir.exists():
+            try:
+                shutil.rmtree(audio_dir)
+                logger.info(f"✅ Deleted existing audio directory for lecture {lecture_id}")
+                print(f"\n🗑️  Cleared old audio files from: {audio_dir}")
+            except Exception as exc:
+                logger.warning(f"Failed to delete audio directory: {exc}")
+                # Try to delete individual files
+                try:
+                    for audio_file in audio_dir.glob("*.mp3"):
+                        audio_file.unlink(missing_ok=True)
+                    logger.info(f"Deleted individual audio files for lecture {lecture_id}")
+                except Exception as inner_exc:
+                    logger.error(f"Failed to delete individual audio files: {inner_exc}")
         # Generate new content
         lecture_data = await groq_service.generate_lecture_content(
             text=source_text,
@@ -1258,9 +1279,22 @@ async def regenerate_lecture(
             "context": context,
             "total_slides": len(slides),
             "fallback_used": lecture_data.get("fallback_used", False),
+            "audio_generated": False,  # Mark as not generated yet
         }
         
         record = await repository.update_lecture(lecture_id, updates)
+         # NOW regenerate audio with force=True (audio dir is already deleted)
+
+        lecture_service = LectureService(db=db, groq_api_key=GROQ_API_KEY)
+
+        print(f"\n🎤 Regenerating audio for {len(slides)} slides...")
+        # Remove audio_version from all slides before regeneration
+        for slide in slides:
+            slide.pop("audio_version", None)
+            slide.pop("audio_url", None)
+            slide.pop("audio_download_url", None)
+        record = await lecture_service.refresh_slide_audio(record, force=True)
+        print(f"✅ Audio regeneration complete!")
         
         # Generate JSON URL again after regeneration
         metadata = original.get("metadata", {})
@@ -1295,6 +1329,7 @@ async def regenerate_lecture(
             detail=f"Lecture {lecture_id} not found"
         )
     except Exception as e:
+        logger.error(f"Error regenerating lecture: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error regenerating lecture: {str(e)}"

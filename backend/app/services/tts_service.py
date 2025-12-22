@@ -23,6 +23,22 @@ class GoogleTTSService:
     _SENTENCE_ENDINGS = ".!?।！？"
     _SENTENCE_DELIMITER_PATTERN = re.compile(r"(?<=[.!?।！？])\s+|[\r\n]+")
     _BULLET_PREFIX_PATTERN = re.compile(r"^[\-\u2010-\u2015\u2022\u25CF\u25CB\u25A0\*]+\s+")
+    _UNWANTED_SPOKEN_CHARS_PATTERN = re.compile(r"\$+|\*{2,}")
+
+    _MATH_SYMBOL_SPOKEN_MAP = {
+        "+": "plus",
+        "-": "minus",
+        "−": "minus",
+        "*": "times",
+        "×": "times",
+        "/": "divided by",
+        "÷": "divided by",
+        "=": "equals",
+        "^": "to the power of",
+        "%": "percent",
+    }
+
+    _MATH_SYMBOL_PATTERN = re.compile(r"(?P<symbol>[+\-*/=×÷−^%])")
 
     def __init__(
         self,
@@ -47,7 +63,7 @@ class GoogleTTSService:
         model: str | None = None,
     ) -> Optional[Path]:
         """Generate an MP3 file for the provided text chunk."""
-        normalized_text = (text or "").strip()
+        normalized_text = self._sanitize_text((text or "").strip())
         if not normalized_text:
             logger.info(
                 "Skipping TTS for lecture %s (%s) because text is empty.",
@@ -68,22 +84,56 @@ class GoogleTTSService:
             target_path,
         )
 
+    # def _write_audio_file(
+    #     self,
+    #     text: str,
+    #     voice: texttospeech.VoiceSelectionParams,
+    #     target_path: Path,
+    # ) -> Optional[Path]:
+    #     temp_path: Optional[Path] = None
+    #     try:
+    #         target_path.parent.mkdir(parents=True, exist_ok=True)
+    #         with tempfile.NamedTemporaryFile(
+    #             mode="wb",
+    #             delete=False,
+    #             dir=target_path.parent,
+    #             suffix=".tmp",
+    #         ) as temp_file:
+    #             temp_path = Path(temp_file.name)
+    #             for chunk_text in self._chunk_text(text):
+    #                 response = self._client.synthesize_speech(
+    #                     input=texttospeech.SynthesisInput(text=chunk_text),
+    #                     voice=voice,
+    #                     audio_config=texttospeech.AudioConfig(
+    #                         audio_encoding=texttospeech.AudioEncoding.MP3
+    #                     ),
+    #                 )
+    #                 temp_file.write(response.audio_content)
+    #         temp_path.replace(target_path)
+    #         logger.info("Generated lecture audio at %s", target_path)
+    #         return target_path
+    #     except (GoogleAPICallError, OSError, ValueError) as exc:
+    #         logger.error(
+    #             "Failed to synthesize audio for lecture %s: %s",
+    #             target_path.name,
+    #             exc,
+    #         )
+    #         logger.exception("Full TTS error details for %s:", target_path.name)
+    #         for path in filter(None, [temp_path, target_path]):
+    #             try:
+    #                 if path.exists():
+    #                     path.unlink(missing_ok=True)
+    #             except Exception:  # pragma: no cover - best effort cleanup
+    #                 pass
+    #         return None
     def _write_audio_file(
         self,
         text: str,
         voice: texttospeech.VoiceSelectionParams,
         target_path: Path,
     ) -> Optional[Path]:
-        temp_path: Optional[Path] = None
         try:
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-            with tempfile.NamedTemporaryFile(
-                mode="wb",
-                delete=False,
-                dir=target_path.parent,
-                suffix=".tmp",
-            ) as temp_file:
-                temp_path = Path(temp_file.name)
+            with open(target_path, "wb") as audio_file:
                 for chunk_text in self._chunk_text(text):
                     response = self._client.synthesize_speech(
                         input=texttospeech.SynthesisInput(text=chunk_text),
@@ -92,8 +142,7 @@ class GoogleTTSService:
                             audio_encoding=texttospeech.AudioEncoding.MP3
                         ),
                     )
-                    temp_file.write(response.audio_content)
-            temp_path.replace(target_path)
+                    audio_file.write(response.audio_content)
             logger.info("Generated lecture audio at %s", target_path)
             return target_path
         except (GoogleAPICallError, OSError, ValueError) as exc:
@@ -103,12 +152,11 @@ class GoogleTTSService:
                 exc,
             )
             logger.exception("Full TTS error details for %s:", target_path.name)
-            for path in filter(None, [temp_path, target_path]):
-                try:
-                    if path.exists():
-                        path.unlink(missing_ok=True)
-                except Exception:  # pragma: no cover - best effort cleanup
-                    pass
+            try:
+                if target_path.exists():
+                    target_path.unlink(missing_ok=True)
+            except Exception:  # pragma: no cover - best effort cleanup
+                pass
             return None
 
     def _build_client(self, credentials_path: str) -> texttospeech.TextToSpeechClient:
@@ -275,7 +323,20 @@ class GoogleTTSService:
         if not trimmed:
             return ""
         normalized = self._BULLET_PREFIX_PATTERN.sub("", trimmed)
-        return normalized.strip()
+        return self._sanitize_text(normalized)
+
+    def _sanitize_text(self, text: str) -> str:
+
+        """Remove characters that create noisy pronunciations in TTS output."""
+        if not text:
+            return ""
+        sanitized = self._UNWANTED_SPOKEN_CHARS_PATTERN.sub(" ", text)
+        sanitized = self._MATH_SYMBOL_PATTERN.sub(
+            lambda match: f" {self._MATH_SYMBOL_SPOKEN_MAP.get(match.group('symbol'), match.group('symbol'))} ",
+            sanitized,
+        )
+        sanitized = re.sub(r"\s{2,}", " ", sanitized)
+        return sanitized.strip()   
 
     @classmethod
     def _ensure_sentence_ending(cls, sentence: str) -> str:
