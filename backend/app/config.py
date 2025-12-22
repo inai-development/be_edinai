@@ -118,6 +118,11 @@ class Settings(BaseSettings):
         env="RUNWAY_API_KEY",
         description="API key for Runway text-to-video service",
     )
+    runway_enabled: bool = Field(
+        False,
+        env="RUNWAY_ENABLED",
+        description="Toggle Runway media generation features on/off",
+    )
     runway_text_to_video_url: str = Field(
         "https://api.runwayml.com/v1/text_to_video",
         env="RUNWAY_TEXT_TO_VIDEO_URL",

@@ -18,6 +18,7 @@ class RunwayImageService:
     def __init__(self, *, settings=None, client: Optional[httpx.AsyncClient] = None) -> None:
         self._settings = settings or get_settings()
         self._api_key = self._settings.runway_api_key
+        self._enabled = bool(self._settings.runway_enabled and self._api_key)
         self._text_to_image_url = self._settings.runway_text_to_image_url
         self._tasks_base_url = self._settings.runway_tasks_base_url.rstrip("/")
         self._api_version = self._settings.runway_api_version
@@ -27,7 +28,7 @@ class RunwayImageService:
 
     @property
     def configured(self) -> bool:
-        return bool(self._api_key)
+        return self._enabled
 
     async def close(self) -> None:
         await self._client.aclose()
@@ -74,8 +75,15 @@ class RunwayImageService:
             "X-Runway-Version": self._api_version,
         }
 
-        response = await self._client.post(self._text_to_image_url, json=payload, headers=headers)
-        response.raise_for_status()
+        try:
+            response = await self._client.post(self._text_to_image_url, json=payload, headers=headers)
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 401:
+                self._enabled = False
+                logger.error("Runway image API returned 401; disabling further image generation attempts")
+                raise RuntimeError("Runway image API unauthorized (check RUNWAY_API_KEY)") from exc
+            raise
         task = response.json()
         task_id = task.get("id")
         if not task_id:
