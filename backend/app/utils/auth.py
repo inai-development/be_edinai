@@ -28,9 +28,6 @@ def decode_token(token: str) -> Dict[str, Any] | None:
 def create_refresh_token() -> str:
     """Create a secure refresh token."""
     return secrets.token_urlsafe(32)
-
-
-
 def get_token_expiry(token: str) -> datetime | None:
     """Get the expiration time of a JWT token."""
     payload = decode_token(token)
