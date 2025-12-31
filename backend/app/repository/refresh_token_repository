@@ -1,0 +1,102 @@
+"""Refresh token repository for database operations."""
+from __future__ import annotations
+
+import secrets
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy.orm import Session
+
+from ..models.refresh_token import RefreshToken
+
+
+def create_refresh_token(
+    db: Session,
+    user_id: int,
+    user_role: str,
+    expires_days: int = 7,
+    device_info: str | None = None,
+    ip_address: str | None = None,
+) -> str:
+    """Create a new refresh token and return the token string."""
+    
+    # Generate a secure random token
+    token = secrets.token_urlsafe(32)
+    
+    expires_at = datetime.now(timezone.utc) + timedelta(days=expires_days)
+    
+    refresh_token = RefreshToken(
+        token=token,
+        user_id=user_id,
+        user_role=user_role,
+        is_active=True,
+        expires_at=expires_at,
+        device_info=device_info,
+        ip_address=ip_address,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc),
+    )
+    
+    db.add(refresh_token)
+    db.commit()
+    db.refresh(refresh_token)
+    
+    return token
+
+
+def get_active_refresh_token(db: Session, token: str) -> RefreshToken | None:
+    """Get an active refresh token by token string."""
+    return db.query(RefreshToken).filter(
+        RefreshToken.token == token,
+        RefreshToken.is_active == True,
+        RefreshToken.expires_at > datetime.now(timezone.utc)
+    ).first()
+
+
+def deactivate_refresh_token(db: Session, token: str) -> bool:
+    """Deactivate a refresh token by token string."""
+    refresh_token = db.query(RefreshToken).filter(
+        RefreshToken.token == token
+    ).first()
+    
+    if refresh_token:
+        refresh_token.is_active = False
+        refresh_token.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        return True
+    
+    return False
+
+
+def deactivate_all_user_tokens(db: Session, user_id: int, user_role: str) -> int:
+    """Deactivate all refresh tokens for a specific user."""
+    count = db.query(RefreshToken).filter(
+        RefreshToken.user_id == user_id,
+        RefreshToken.user_role == user_role,
+        RefreshToken.is_active == True
+    ).update({
+        "is_active": False,
+        "updated_at": datetime.now(timezone.utc)
+    })
+    
+    db.commit()
+    return count
+
+
+def cleanup_expired_tokens(db: Session) -> int:
+    """Remove expired refresh tokens from database."""
+    count = db.query(RefreshToken).filter(
+        RefreshToken.expires_at <= datetime.now(timezone.utc)
+    ).delete()
+    
+    db.commit()
+    return count
+
+
+
+
+
+
+
+
+
+

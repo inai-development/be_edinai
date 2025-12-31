@@ -328,7 +328,9 @@ def init_db() -> None:
 
     # Import models that should be registered with SQLAlchemy metadata.
     import app.models.chapter_material  # noqa: F401  (ensure model is imported)
-
+    import app.models.refresh_token  # noqa: F401  (ensure model is imported)
+    import app.models.blacklisted_token  # noqa: F401  (ensure model is imported)
+    
     # Base.metadata.create_all(bind=engine)
     try:
         # _ensure_chapter_material_timestamps()

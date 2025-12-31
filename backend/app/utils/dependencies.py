@@ -9,7 +9,9 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 
 from ..config import settings
+from ..database import get_db
 from ..repository import auth_repository, member_repository, registration_repository
+from ..repository.blacklisted_token_repository import is_token_blacklisted
 from ..schemas import WorkType
 
 ALGORITHM = "HS256"
@@ -33,9 +35,19 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
     return jwt.encode(to_encode, settings.secret_key, algorithm=ALGORITHM)
 
 
-def verify_token(token: str) -> Dict[str, Any]:
+def verify_token(token: str, db: Optional[Any] = None) -> Dict[str, Any]:
     try:
-        return jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        
+        # Check if token is blacklisted
+        if db and is_token_blacklisted(db, token):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has been revoked",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        return payload
     except JWTError as exc:  # pragma: no cover - bubbled to FastAPI
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -73,10 +85,10 @@ def _ensure_utc(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
-def _resolve_user_payload(token: str) -> Dict[str, Any]:
+def _resolve_user_payload(token: str, db: Optional[Any] = None) -> Dict[str, Any]:
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing token")
-    payload = verify_token(token)
+    payload = verify_token(token, db)
     role = payload.get("role")
     user_id = payload.get("id")
 
@@ -137,8 +149,9 @@ def resolve_user_from_token(token: str) -> Dict[str, Any]:
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_security),
+    db: Any = Depends(get_db),
 ) -> Dict[str, Any]:
-    return _resolve_user_payload(credentials.credentials)
+    return _resolve_user_payload(credentials.credentials, db)
 
 def admin_required(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     if current_user["role"] != "admin":
