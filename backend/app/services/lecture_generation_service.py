@@ -329,10 +329,23 @@ MANDATORY 9-SLIDE STRUCTURE:
 === SLIDE 2: KEY CONCEPTS ===
 {{
   "title": "Important Concepts You Must Know",
-  "bullets": ["Concept 1", "Concept 2", "Concept 3"],
-  "narration": "Explain key concepts from the chapter with short examples. ({words['normal']} words)",
+  "bullets": [
+    "Concept 1 – short explanation (2–3 sentences) taken ONLY from chapter",
+    "Concept 2 – explanation with example if present in source",
+    "Concept 3 – clear student-friendly explanation"
+  ],
+  "narration": "",
   "question": ""
 }}
+
+STRICT RULES FOR SLIDE 2:
+- DO NOT write narration at all
+- Each bullet MUST include:
+  • concept name
+  • its explanation (2–3 sentences)
+- Do NOT repeat bullet content elsewhere
+- Bullets are the ONLY explanation on this slide
+
 
 === SLIDE 3: DEEP UNDERSTANDING ===
 {{
@@ -514,6 +527,11 @@ class GroqService:
         
         slides = data.get("slides", [])
         fallback_used = False
+        # 🔒 HARD RULE: Slide 2 must NEVER have narration
+        for slide in slides:
+            if slide.get("number") == 2:
+                slide["narration"] = ""
+
         if len(slides) != 9:
             try:
                 slides = await self._retry_exact_slide_count(
@@ -1088,7 +1106,7 @@ class GroqService:
                     "number": slide_number,
                     "title": title,
                     "bullets": bullet_points,
-                    "narration": narration,
+                    "narration": "" if slide_number == 2 else narration,
                     "question": question if slide_number == 9 else "",
                 }
             )
@@ -1444,6 +1462,9 @@ class GroqService:
         requested_duration: Optional[int] = None,
     ) -> int:
         """Get minimum word count for each slide."""
+        # 🔒 HARD RULE: Slide 2 must NEVER have narration
+        if slide_number == 2:
+            return 0
         if not requested_duration:
             if slide_number == 1:
                 return 100
@@ -1473,7 +1494,7 @@ class GroqService:
         quiz_min = max(180, int(round(normal_min * 0.6)))
         if slide_number == 1:
             return intro_min
-        if slide_number in (2, 3, 8):
+        if slide_number in (3, 8):
             return normal_min
         if 4 <= slide_number <= 7:
             return deep_min
