@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from fastapi.responses import JSONResponse
 
+from ..database import get_db
 from ..schemas import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
