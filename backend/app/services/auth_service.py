@@ -406,37 +406,27 @@ def logout(access_token: str, refresh_token: str | None, db) -> Tuple[str, Dict[
 
 
 def refresh_access_token(refresh_token: str, db) -> Tuple[str, Dict[str, object]]:
-    """Generate new access token using valid refresh token."""
-    
-    # First try to get refresh token from database (our implementation)
+    # Try database refresh token first
     token_obj = refresh_token_repository.get_active_refresh_token(db, refresh_token)
     
     if token_obj:
-        # Use database refresh token
         return _create_token_from_db_refresh(token_obj)
     
-    # If not found in database, try to decode as JWT (portal implementation)
+    # Try JWT refresh token (portal)
     try:
-        from ..utils.auth import decode_token
         payload = decode_token(refresh_token)
-        if payload and "sub" in payload and "type" in payload and payload.get("type") == "refresh":
-            # Handle JWT refresh token from portal
+        if payload and "sub" in payload and payload.get("type") == "refresh":
             user_id = int(payload["sub"])
             return _create_token_from_jwt_refresh(user_id, db)
     except Exception:
         pass
     
-    # If neither method works, raise error
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED, 
-        detail="Invalid or expired refresh token"
-    )
+    # Invalid token
+    raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
 
 def _create_token_from_db_refresh(token_obj) -> Tuple[str, Dict[str, object]]:
-    """Create access token from database refresh token object."""
-    
-    # Create new token data based on user info
+    # Create token data based on user role
     token_data = {
         "role": token_obj.user_role,
         "id": token_obj.user_id,
@@ -446,7 +436,6 @@ def _create_token_from_db_refresh(token_obj) -> Tuple[str, Dict[str, object]]:
     if token_obj.user_role == "admin":
         admin = _get_admin_record(token_obj.user_id)
         if admin:
-            admin = _normalize_admin_record(admin)
             token_data.update({
                 "package": admin.get("package") or admin.get("package_plan"),
                 "has_inai_credentials": admin.get("has_inai_credentials", False),
@@ -463,19 +452,14 @@ def _create_token_from_db_refresh(token_obj) -> Tuple[str, Dict[str, object]]:
     # Generate new access token
     new_access_token = create_access_token(data=token_data)
     
-    payload = {
+    return "Token refreshed successfully", {
         "access_token": new_access_token,
         "role": token_obj.user_role,
         "id": token_obj.user_id,
     }
-    
-    return "Token refreshed successfully", payload
-
 
 def _create_token_from_jwt_refresh(user_id: int, db) -> Tuple[str, Dict[str, object]]:
-    """Create access token from JWT refresh token user_id."""
-    
-    # Try to get user info from repositories
+    # Get user from repositories
     admin = _get_admin_record(user_id)
     member = None
     
@@ -483,11 +467,9 @@ def _create_token_from_jwt_refresh(user_id: int, db) -> Tuple[str, Dict[str, obj
         member = member_repository.get_member_by_id(user_id)
     
     if not admin and not member:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="User not found"
-        )
+        raise HTTPException(status_code=401, detail="User not found")
     
+    # Create token data
     if admin:
         admin = _normalize_admin_record(admin)
         token_data = {
@@ -508,13 +490,11 @@ def _create_token_from_jwt_refresh(user_id: int, db) -> Tuple[str, Dict[str, obj
     # Generate new access token
     new_access_token = create_access_token(data=token_data)
     
-    payload = {
+    return "Token refreshed successfully", {
         "access_token": new_access_token,
         "role": token_data["role"],
         "id": token_data["id"],
     }
-    
-    return "Token refreshed successfully", payload
 
 
 def _get_admin_record(user_id: int) -> Dict[str, object] | None:
