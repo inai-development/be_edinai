@@ -329,22 +329,20 @@ MANDATORY 9-SLIDE STRUCTURE:
 === SLIDE 2: KEY CONCEPTS ===
 {{
   "title": "Important Concepts You Must Know",
-  "bullets": [
-    "Concept 1 – short explanation (2–3 sentences) taken ONLY from chapter",
-    "Concept 2 – explanation with example if present in source",
-    "Concept 3 – clear student-friendly explanation"
-  ],
-  "narration": "",
+  "bullets": [],
+  "narration": "Explain the top 3 key concepts ONLY from the chapter. For each concept: start with the ACTUAL concept name from the source (e.g., 'Flower as a Reproductive Organ'), follow with a 2–3 sentence explanation, and include a source example if available. Write each concept on its own new line/paragraph so they appear separately. Keep narration concise yet informative. ({words['normal']} words)",
   "question": ""
 }}
 
 STRICT RULES FOR SLIDE 2:
-- DO NOT write narration at all
-- Each bullet MUST include:
-  • concept name
-  • its explanation (2–3 sentences)
-- Do NOT repeat bullet content elsewhere
-- Bullets are the ONLY explanation on this slide
+- DO NOT use bullets
+- Narration must cover exactly 3 key concepts in order of appearance
+- Each concept segment MUST include:
+  • the actual concept name from the source (no generic labels like "Concept 1")
+  • its explanation (2–3 sentences) from the chapter
+  • example/application if given in the source
+- Separate each concept with a newline so they appear as distinct paragraphs
+- Do NOT repeat narration content elsewhere
 
 
 === SLIDE 3: DEEP UNDERSTANDING ===
