@@ -44,12 +44,29 @@ def create_refresh_token(
 
 
 def get_active_refresh_token(db: Session, token: str) -> RefreshToken | None:
-    """Get an active refresh token by token string."""
     return db.query(RefreshToken).filter(
         RefreshToken.token == token,
         RefreshToken.is_active == True,
-        RefreshToken.expires_at > datetime.now(timezone.utc)
+        RefreshToken.expires_at > datetime.now(timezone.utc)  # Not expired
     ).first()
+
+def create_refresh_token(db: Session, user_id: int, user_role: str, expires_days: int = 7):
+    token = secrets.token_urlsafe(32)  # Secure random token
+    expires_at = datetime.now(timezone.utc) + timedelta(days=expires_days)
+    
+    refresh_token = RefreshToken(
+        token=token,
+        user_id=user_id,
+        user_role=user_role,
+        is_active=True,
+        expires_at=expires_at,
+        created_at=datetime.now(timezone.utc),
+    )
+    
+    db.add(refresh_token)
+    db.commit()
+    return token
+
 
 
 def deactivate_refresh_token(db: Session, token: str) -> bool:

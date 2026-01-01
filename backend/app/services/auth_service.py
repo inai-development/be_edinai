@@ -459,9 +459,7 @@ def _create_token_from_db_refresh(token_obj) -> Tuple[str, Dict[str, object]]:
     }
 
 def _create_token_from_jwt_refresh(user_id: int, db) -> Tuple[str, Dict[str, object]]:
-    """Create access token from JWT refresh token user_id."""
-    
-    # Try to get user info from repositories
+    # Get user from repositories
     admin = _get_admin_record(user_id)
     member = None
     
@@ -469,11 +467,9 @@ def _create_token_from_jwt_refresh(user_id: int, db) -> Tuple[str, Dict[str, obj
         member = member_repository.get_member_by_id(user_id)
     
     if not admin and not member:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
-            detail="User not found"
-        )
+        raise HTTPException(status_code=401, detail="User not found")
     
+    # Create token data
     if admin:
         admin = _normalize_admin_record(admin)
         token_data = {
@@ -494,13 +490,11 @@ def _create_token_from_jwt_refresh(user_id: int, db) -> Tuple[str, Dict[str, obj
     # Generate new access token
     new_access_token = create_access_token(data=token_data)
     
-    payload = {
+    return "Token refreshed successfully", {
         "access_token": new_access_token,
         "role": token_data["role"],
         "id": token_data["id"],
     }
-    
-    return "Token refreshed successfully", payload
 
 
 def _get_admin_record(user_id: int) -> Dict[str, object] | None:
