@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from typing import Union
-from fastapi import APIRouter, Depends, HTTPException, status, Header, Body, Form, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Header
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 
@@ -14,44 +14,24 @@ from ..schemas import (
     LoginRequest as AuthLoginRequest,
     ResetPasswordRequest,
     ResponseBase,
-    RefreshTokenRequest,
-    LegacyRefreshTokenRequest,
-    LegacyCamelRefreshTokenRequest,
 )
 from ..schemas.admin_portal_schema import LoginRequest as AdminPortalLoginRequest
 from ..services import auth_service, registration_service
 from ..utils.dependencies import get_current_user
 
 
-RefreshPayload = Union[
-    RefreshTokenRequest,
-    LegacyRefreshTokenRequest,
-    LegacyCamelRefreshTokenRequest,
-    str,
-    None,
-]
-
 
 def _extract_refresh_token(
-    payload: RefreshPayload,
+    payload: RefreshTokenRequest | None,
     *extra_candidates: Union[str, None],
 ) -> str | None:
     if payload:
-        if isinstance(payload, str):
-            if payload.strip():
-                return payload.strip()
-        elif isinstance(payload, RefreshTokenRequest):
-            return payload.refresh_token
-        elif isinstance(payload, LegacyRefreshTokenRequest):
-            return payload.token
-        elif isinstance(payload, LegacyCamelRefreshTokenRequest):
-            return payload.refreshToken
+        return payload.refresh_token
 
     for candidate in extra_candidates:
         if candidate and candidate.strip():
             return candidate.strip()
     return None
-
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -108,25 +88,11 @@ async def logout(authorization: str = Header(None)) -> ResponseBase:
 
 @router.post("/refresh", response_model=ResponseBase)
 async def refresh_token(
-    payload: RefreshPayload = Body(None),
-    refresh_token_form: str | None = Form(default=None, alias="refresh_token"),
-    token_form: str | None = Form(default=None, alias="token"),
-    camel_refresh_token_form: str | None = Form(default=None, alias="refreshToken"),
-    refresh_token_query: str | None = Query(default=None, alias="refresh_token"),
-    token_query: str | None = Query(default=None, alias="token"),
-    camel_refresh_token_query: str | None = Query(default=None, alias="refreshToken"),
+    payload: RefreshTokenRequest,
     db = Depends(get_db)
 ) -> ResponseBase:
     try:
-        refresh_token_value = _extract_refresh_token(
-            payload,
-            refresh_token_form,
-            token_form,
-            camel_refresh_token_form,
-            refresh_token_query,
-            token_query,
-            camel_refresh_token_query,
-        )
+        refresh_token_value = payload.refresh_token
 
         if not refresh_token_value:
             raise HTTPException(
@@ -163,7 +129,6 @@ async def refresh_token(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to refresh token"
         ) from exc
-
 
 
 @router.post("/change-password", response_model=ResponseBase)
