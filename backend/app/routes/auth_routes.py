@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 from typing import Union
-from fastapi import APIRouter, Depends, Header, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from pydantic import BaseModel
+from fastapi.responses import JSONResponse
+
 
 from ..database import get_db
 from ..schemas import (
@@ -73,7 +74,10 @@ async def logout(authorization: str = Header(None)) -> ResponseBase:
     return ResponseBase(status=True, message="Logout successful", data={})
 
 @router.post("/refresh", response_model=ResponseBase)
-async def refresh_token(payload: RefreshTokenRequest, db = Depends(get_db)) -> ResponseBase:
+async def refresh_token(
+    payload: RefreshTokenRequest = Body(..., embed=True),  # Force JSON body
+    db = Depends(get_db)
+) -> ResponseBase:
     try:
         # First try to handle with registration service (for JWT refresh tokens)
         try:
