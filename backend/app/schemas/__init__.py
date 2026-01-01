@@ -9,6 +9,7 @@ from .auth_schema import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
     ResetPasswordRequest,
+    RefreshTokenRequest,
 )
 from .contact_schema import ContactCreate, ContactRead, ContactResponse
 from .chapter_material_schema import ChapterMaterialCreate, ChapterMaterialResponse
@@ -62,6 +63,7 @@ __all__ = [
     "ChangePasswordRequest",
     "ForgotPasswordRequest",
     "ResetPasswordRequest",
+    "RefreshTokenRequest",
     "StudentProfileCreate",
     "StudentProfileResponse",
     "StudentSignupRequest",

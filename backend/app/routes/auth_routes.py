@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from typing import Union
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 
@@ -75,7 +75,7 @@ async def logout(authorization: str = Header(None)) -> ResponseBase:
 
 @router.post("/refresh", response_model=ResponseBase)
 async def refresh_token(
-    payload: RefreshTokenRequest = Body(..., embed=True),  # Force JSON body
+    payload: RefreshTokenRequest,
     db = Depends(get_db)
 ) -> ResponseBase:
     try:
