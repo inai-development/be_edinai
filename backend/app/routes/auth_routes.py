@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from typing import Union
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Body, Form, Query
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 
@@ -14,10 +14,43 @@ from ..schemas import (
     LoginRequest as AuthLoginRequest,
     ResetPasswordRequest,
     ResponseBase,
+    RefreshTokenRequest,
+    LegacyRefreshTokenRequest,
+    LegacyCamelRefreshTokenRequest,
 )
 from ..schemas.admin_portal_schema import LoginRequest as AdminPortalLoginRequest
 from ..services import auth_service, registration_service
 from ..utils.dependencies import get_current_user
+
+
+RefreshPayload = Union[
+    RefreshTokenRequest,
+    LegacyRefreshTokenRequest,
+    LegacyCamelRefreshTokenRequest,
+    str,
+    None,
+]
+
+
+def _extract_refresh_token(
+    payload: RefreshPayload,
+    *extra_candidates: Union[str, None],
+) -> str | None:
+    if payload:
+        if isinstance(payload, str):
+            if payload.strip():
+                return payload.strip()
+        elif isinstance(payload, RefreshTokenRequest):
+            return payload.refresh_token
+        elif isinstance(payload, LegacyRefreshTokenRequest):
+            return payload.token
+        elif isinstance(payload, LegacyCamelRefreshTokenRequest):
+            return payload.refreshToken
+
+    for candidate in extra_candidates:
+        if candidate and candidate.strip():
+            return candidate.strip()
+    return None
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -75,19 +108,41 @@ async def logout(authorization: str = Header(None)) -> ResponseBase:
 
 @router.post("/refresh", response_model=ResponseBase)
 async def refresh_token(
-    payload: RefreshTokenRequest,
+    payload: RefreshPayload = Body(None),
+    refresh_token_form: str | None = Form(default=None, alias="refresh_token"),
+    token_form: str | None = Form(default=None, alias="token"),
+    camel_refresh_token_form: str | None = Form(default=None, alias="refreshToken"),
+    refresh_token_query: str | None = Query(default=None, alias="refresh_token"),
+    token_query: str | None = Query(default=None, alias="token"),
+    camel_refresh_token_query: str | None = Query(default=None, alias="refreshToken"),
     db = Depends(get_db)
 ) -> ResponseBase:
     try:
+        refresh_token_value = _extract_refresh_token(
+            payload,
+            refresh_token_form,
+            token_form,
+            camel_refresh_token_form,
+            refresh_token_query,
+            token_query,
+            camel_refresh_token_query,
+        )
+
+        if not refresh_token_value:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="refresh_token is required",
+            )
+
         # First try to handle with registration service (for JWT refresh tokens)
         try:
             # Check if this looks like a JWT token (portal refresh token)
-            if payload.refresh_token.count('.') == 2:  # JWT structure has 3 parts separated by dots
+            if refresh_token_value.count('.') == 2:  # JWT structure has 3 parts separated by dots
                 # Try to get user info from JWT and create new access token
                 from ..services.auth_service import _create_token_from_jwt_refresh
                 from ..utils.auth import decode_token
                 
-                jwt_payload = decode_token(payload.refresh_token)
+                jwt_payload = decode_token(refresh_token_value)
                 if jwt_payload and "sub" in jwt_payload and jwt_payload.get("type") == "refresh":
                     user_id = int(jwt_payload["sub"])
                     message, data = _create_token_from_jwt_refresh(user_id, db)
@@ -96,7 +151,7 @@ async def refresh_token(
             pass
         
         # Fall back to our database refresh token implementation
-        message, data = auth_service.refresh_access_token(payload.refresh_token, db)
+        message, data = auth_service.refresh_access_token(refresh_token_value, db)
         return ResponseBase(status=True, message=message, data=data)
         
     except HTTPException as exc:

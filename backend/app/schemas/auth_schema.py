@@ -34,3 +34,11 @@ class ResetPasswordRequest(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str = Field(..., min_length=1)
+
+
+class LegacyRefreshTokenRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+
+
+class LegacyCamelRefreshTokenRequest(BaseModel):
+    refreshToken: str = Field(..., min_length=1)
