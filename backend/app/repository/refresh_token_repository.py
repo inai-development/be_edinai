@@ -68,7 +68,6 @@ def create_refresh_token(db: Session, user_id: int, user_role: str, expires_days
     return token
 
 
-
 def deactivate_refresh_token(db: Session, token: str) -> bool:
     """Deactivate a refresh token by token string."""
     refresh_token = db.query(RefreshToken).filter(
