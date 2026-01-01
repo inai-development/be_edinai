@@ -70,6 +70,7 @@ GROQ_BACKUP_MODEL = os.getenv("GROQ_BACKUP_MODEL", "llama-3.3-70b-versatile")
 MAX_INPUT_CHARS = int(os.getenv("GROQ_PROMPT_CHAR_LIMIT", "9000"))
 GROQ_MAX_COMPLETION_TOKENS = int(os.getenv("GROQ_MAX_COMPLETION_TOKENS", "6000"))
 TOPIC_PAGES_PER_CHUNK = int(os.getenv("TOPIC_PAGES_PER_CHUNK", "3"))
+MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "60"))
 
 TOPIC_EXTRACTION_PROMPT_TEMPLATE = (
     "You are given the extracted text of a textbook PDF below. "
@@ -200,13 +201,21 @@ def _guess_language_by_script(text: str) -> Optional[str]:
     return best_code
 
 
+    
 def read_pdf(pdf_path: Path) -> str:
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF file not found: {pdf_path}")
 
     reader = PdfReader(str(pdf_path))
+     # ✅ LOG HERE (correct place)
+    if len(reader.pages) > MAX_PDF_PAGES:
+        logger.info(
+            "PDF has %d pages; processing only first %d pages",
+            len(reader.pages),
+            MAX_PDF_PAGES
+        )
     text_parts: List[str] = []
-    for page_number, page in enumerate(reader.pages, start=1):
+    for page_number, page in enumerate(reader.pages[:MAX_PDF_PAGES], start=1):
         page_text = page.extract_text() or ""
         if not page_text.strip():
             continue
@@ -490,6 +499,26 @@ def _group_pages_into_chunks(
         })
 
     return chunks
+
+
+def _limit_page_entries(
+    pages: List[Dict[str, Any]],
+    max_pages: int,
+) -> List[Dict[str, Any]]:
+    """Restrict the number of page entries considered for topic extraction."""
+
+    if not pages or max_pages is None or max_pages <= 0:
+        return pages
+
+    if len(pages) <= max_pages:
+        return pages
+
+    logger.info(
+        "Limiting topic extraction to first %d page(s) out of %d",
+        max_pages,
+        len(pages),
+    )
+    return pages[:max_pages]
 
 
 def _build_topic_prompt(language_label: str) -> str:
@@ -1179,6 +1208,7 @@ def extract_topics_from_pdf(pdf_path: Path) -> Dict[str, Any]:
 
     client = Groq(api_key=api_key)
     page_entries = _split_pdf_text_into_pages(pdf_text)
+    page_entries = _limit_page_entries(page_entries, MAX_PDF_PAGES)
     page_chunks = _group_pages_into_chunks(page_entries, TOPIC_PAGES_PER_CHUNK)
 
     if not page_chunks:
