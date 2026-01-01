@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from typing import Union
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, Header
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 
