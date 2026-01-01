@@ -30,3 +30,15 @@ class ResetPasswordRequest(BaseModel):
     email: EmailStr
     reset_token: str
     new_password: str = Field(min_length=8)
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str = Field(..., min_length=1)
+
+
+class LegacyRefreshTokenRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+
+
+class LegacyCamelRefreshTokenRequest(BaseModel):
+    refreshToken: str = Field(..., min_length=1)
