@@ -1,7 +1,7 @@
 """Authentication API routes."""
 from __future__ import annotations
 
-from typing import Union
+from typing import Any, Union
 from fastapi import APIRouter, Depends, HTTPException, status, Header, Body, Form, Query
 from pydantic import BaseModel
 from fastapi.responses import JSONResponse
@@ -27,6 +27,7 @@ RefreshPayload = Union[
     LegacyRefreshTokenRequest,
     LegacyCamelRefreshTokenRequest,
     str,
+    dict[str, Any],
     None,
 ]
 
@@ -38,6 +39,15 @@ def _extract_refresh_token(
     if payload:
         if isinstance(payload, str):
             return payload.strip() or None
+        if isinstance(payload, dict):
+            candidates = [
+                payload.get("refresh_token"),
+                payload.get("token"),
+                payload.get("refreshToken"),
+            ]
+            for candidate in candidates:
+                if candidate and isinstance(candidate, str) and candidate.strip():
+                    return candidate.strip()
         if isinstance(payload, RefreshTokenRequest):
             return payload.refresh_token
         if isinstance(payload, LegacyRefreshTokenRequest):
