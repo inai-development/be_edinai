@@ -75,22 +75,35 @@ async def logout(authorization: str = Header(None)) -> ResponseBase:
 @router.post("/refresh", response_model=ResponseBase)
 async def refresh_token(payload: RefreshTokenRequest, db = Depends(get_db)) -> ResponseBase:
     try:
-        # First try JWT token (portal refresh token)
-        if payload.refresh_token.count('.') == 2:  # JWT structure check
-            jwt_payload = decode_token(payload.refresh_token)
-            if jwt_payload and "sub" in jwt_payload and jwt_payload.get("type") == "refresh":
-                user_id = int(jwt_payload["sub"])
-                message, data = _create_token_from_jwt_refresh(user_id, db)
-                return ResponseBase(status=True, message=message, data=data)
+        # First try to handle with registration service (for JWT refresh tokens)
+        try:
+            # Check if this looks like a JWT token (portal refresh token)
+            if payload.refresh_token.count('.') == 2:  # JWT structure has 3 parts separated by dots
+                # Try to get user info from JWT and create new access token
+                from ..services.auth_service import _create_token_from_jwt_refresh
+                from ..utils.auth import decode_token
+                
+                jwt_payload = decode_token(payload.refresh_token)
+                if jwt_payload and "sub" in jwt_payload and jwt_payload.get("type") == "refresh":
+                    user_id = int(jwt_payload["sub"])
+                    message, data = _create_token_from_jwt_refresh(user_id, db)
+                    return ResponseBase(status=True, message=message, data=data)
+        except Exception:
+            pass
         
-        # Fallback to database refresh token
+        # Fall back to our database refresh token implementation
         message, data = auth_service.refresh_access_token(payload.refresh_token, db)
         return ResponseBase(status=True, message=message, data=data)
         
     except HTTPException as exc:
         raise exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail="Failed to refresh token")
+        import logging
+        logging.exception("Refresh token error")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to refresh token"
+        ) from exc
 
 
 
