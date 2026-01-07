@@ -34,6 +34,11 @@ from .routes import (
 )
 from .utils.file_handler import UPLOAD_DIR, ensure_upload_dir, ensure_upload_subdir
 from .services.auth_service import ensure_dev_admin_account
+from .middleware.security import (
+    RequestFilterMiddleware,
+    RateLimiterMiddleware,
+    build_rate_limiter,
+)
 from .realtime.socket_server import sio
 from .routes.chapter_material_routes import chapter_material_http_exception_handler
 # ----------------------------------
@@ -69,6 +74,20 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # ----------------------------------
+    # SECURITY MIDDLEWARE
+    # ----------------------------------
+    rate_limiter = build_rate_limiter(settings)
+    app.add_middleware(
+        RateLimiterMiddleware,
+        rate_limiter=rate_limiter,
+    )
+    app.add_middleware(
+        RequestFilterMiddleware,
+        blocked_user_agents=settings.blocked_user_agents,
+        max_body_bytes=settings.max_request_body_bytes,
+    )
+
     # ----------------------------------
     # PROMETHEUS MIDDLEWARE (ADDED)
     # ----------------------------------

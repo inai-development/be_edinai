@@ -87,37 +87,20 @@ async def logout(authorization: str = Header(None)) -> ResponseBase:
 
     return ResponseBase(status=True, message="Logout successful", data={})
 
+# Line 106-135: Refresh token priority logic
 @router.post("/refresh", response_model=ResponseBase)
-async def refresh_token(
-    payload: RefreshTokenRequest,
-    db = Depends(get_db)
-) -> ResponseBase:
+async def refresh_token(payload: RefreshTokenRequest, db = Depends(get_db)) -> ResponseBase:
+    # First try database refresh token (this has the correct user_type stored)
     try:
-        refresh_token_value = payload.refresh_token
-
-        if not refresh_token_value:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="refresh_token is required",
-            )
-
-        # First try to handle with registration service (for JWT refresh tokens)
-        try:
-            # Check if this looks like a JWT token (portal refresh token)
-            if refresh_token_value.count('.') == 2:  # JWT structure has 3 parts separated by dots
-                # Try to get user info from JWT and create new access token
-                from ..services.auth_service import _create_token_from_jwt_refresh
-                from ..utils.auth import decode_token
-                
-                jwt_payload = decode_token(refresh_token_value)
-                if jwt_payload and "sub" in jwt_payload and jwt_payload.get("type") == "refresh":
-                    user_id = int(jwt_payload["sub"])
-                    message, data = _create_token_from_jwt_refresh(user_id, db)
-                    return ResponseBase(status=True, message=message, data=data)
-        except Exception:
-            pass
-        
-        # Fall back to our database refresh token implementation
+        from ..services.auth_service import refresh_access_token
+        message, data = refresh_access_token(refresh_token_value, db)
+        return ResponseBase(status=True, message=message, data=data)
+    except HTTPException:
+        # If database refresh token fails, try JWT refresh token
+        pass
+    
+    # Fall back to JWT refresh token (portal service)
+    # ... JWT logic
         message, data = auth_service.refresh_access_token(refresh_token_value, db)
         return ResponseBase(status=True, message=message, data=data)
         

@@ -1072,7 +1072,7 @@ async def search_lectures_by_title(
 
 
 async def list_played_lectures(admin_id: Optional[int] = None) -> List[Dict[str, Any]]:
-    """Return lectures which have a play_count greater than zero."""
+    """Return lectures which have a play_count greater than zero or have shared recordings."""
     query = "SELECT * FROM lecture_gen"
     params: Dict[str, Any] = {}
 
@@ -1090,7 +1090,22 @@ async def list_played_lectures(admin_id: Optional[int] = None) -> List[Dict[str,
     for row in rows:
         record = row.get("lecture_data") or {}
         play_count = int(record.get("play_count") or 0)
-        if play_count <= 0:
+        
+        # Check if lecture has play count or shared recording
+        has_play_count = play_count > 0
+        has_shared_recording = False
+        
+        # Check for shared recording in student portal videos
+        lecture_uid = row.get("lecture_uid")
+        if lecture_uid is not None:
+            try:
+                video_record = student_portal_video_repository.get_latest_video_for_lecture(str(lecture_uid))
+                has_shared_recording = video_record is not None
+            except Exception:
+                has_shared_recording = False
+        
+        # Include lecture if it has play count or shared recording
+        if not has_play_count and not has_shared_recording:
             continue
 
          # duration calculate karna
@@ -1109,7 +1124,6 @@ async def list_played_lectures(admin_id: Optional[int] = None) -> List[Dict[str,
                     except (TypeError, ValueError):
                         continue
 
-        lecture_uid = row.get("lecture_uid")
         lecture_url_value = record.get("lecture_url") or row.get("lecture_link")
 
         # Latest video URL nikalna
@@ -1134,21 +1148,57 @@ async def list_played_lectures(admin_id: Optional[int] = None) -> List[Dict[str,
         if video_url_value is None:
             video_url_value = lecture_url_value
 
+        # Use play_count if available, otherwise set to 1 for shared recordings
+        display_play_count = play_count if has_play_count else 1
+        # Use last_played_at if available, otherwise use created_at for shared recordings
+        display_last_played = record.get("last_played_at") or row.get("created_at") or ""
+
         played.append(
             {
                 "lecture_id": lecture_uid,
                 "title": record.get("title") or row.get("lecture_title"),
                 "language": record.get("language"),
-                "play_count": play_count,
-                "last_played_at": record.get("last_played_at"),
+                "play_count": display_play_count,
+                "last_played_at": display_last_played,
                 "lecture_url": lecture_url_value,
                 "cover_photo_url": record.get("cover_photo_url") or row.get("cover_photo_url"),
                 "duration": duration_minutes,
                 "video_url": video_url_value,
+                "has_shared_recording": has_shared_recording,
             }
         )
 
-    played.sort(key=lambda item: item.get("last_played_at") or "", reverse=True)
+    # Sort by last_played_at, handling None and string values properly
+    def sort_key(item):
+        last_played = item.get("last_played_at")
+        if last_played is None or last_played == "":
+            return datetime.min.replace(tzinfo=None)  # Ensure naive datetime
+        
+        # Convert string datetime to datetime object if needed
+        if isinstance(last_played, str):
+            try:
+                # Try parsing common datetime formats
+                if 'T' in last_played:  # ISO format
+                    from datetime import datetime
+                    if '.' in last_played:
+                        dt = datetime.strptime(last_played, "%Y-%m-%dT%H:%M:%S.%f%z")
+                    else:
+                        dt = datetime.strptime(last_played, "%Y-%m-%dT%H:%M:%S%z")
+                    # Convert to naive datetime for comparison
+                    return dt.replace(tzinfo=None)
+                else:  # Simple format
+                    return datetime.strptime(last_played, "%Y-%m-%d %H:%M:%S")
+            except (ValueError, TypeError):
+                # If parsing fails, treat as oldest
+                return datetime.min.replace(tzinfo=None)
+        
+        # If it's already a datetime object, ensure it's naive for comparison
+        if hasattr(last_played, 'tzinfo') and last_played.tzinfo is not None:
+            return last_played.replace(tzinfo=None)
+        
+        return last_played
+    
+    played.sort(key=sort_key, reverse=True)
     return played
 
 

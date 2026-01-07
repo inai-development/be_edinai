@@ -459,52 +459,76 @@ def _create_token_from_db_refresh(token_obj) -> Tuple[str, Dict[str, object]]:
     }
 
 def _create_token_from_jwt_refresh(user_id: int, db) -> Tuple[str, Dict[str, object]]:
-    # Get user from repositories
-    admin = _get_admin_record(user_id)
-    member = None
+    # Get user from repositories - check member first since that's more specific
+    member = member_repository.get_member_by_id(user_id)
+    admin = None
     
-    if not admin:
-        member = member_repository.get_member_by_id(user_id)
+    if not member:
+        admin = _get_admin_record(user_id)
     
-    if not admin and not member:
+    if not member and not admin:
         raise HTTPException(status_code=401, detail="User not found")
     
+    # Prepare response data with role-specific information
+    response_data = {
+        "access_token": None,  # Will be set below
+    }
+    
     # Create token data
-    if admin:
+    if member:
+        # User is a member
+        token_data = {
+            "sub": str(member["member_id"]),  # Add sub field
+            "user_type": "member",  # Add user_type field
+            "role": "member",
+            "id": member["member_id"],
+            "work_type": member["work_type"],
+            "admin_id": member["admin_id"],
+        }
+        # Add member-specific data to response
+        response_data.update({
+            "role": "member",
+            "id": member["member_id"],
+            "name": member.get("name"),
+            "email": member.get("email"),
+            "work_type": member["work_type"],
+            "admin_id": member["admin_id"],
+        })
+    else:
+        # User is an admin
         admin = _normalize_admin_record(admin)
         token_data = {
+            "sub": str(admin["admin_id"]),  # Add sub field
+            "user_type": "admin",  # Add user_type field
             "role": "admin",
             "id": admin["admin_id"],
             "package": admin.get("package") or admin.get("package_plan"),
             "has_inai_credentials": admin.get("has_inai_credentials", False),
             "is_super_admin": admin.get("is_super_admin", False),
         }
-    else:
-        token_data = {
-            "role": "member",
-            "id": member["member_id"],
-            "work_type": member["work_type"],
-            "admin_id": member["admin_id"],
-        }
+        # Add admin-specific data to response
+        response_data.update({
+            "role": "admin",
+            "id": admin["admin_id"],
+            "name": admin.get("name"),
+            "email": admin.get("email"),
+            "package": admin.get("package") or admin.get("package_plan"),
+            "has_inai_credentials": admin.get("has_inai_credentials", False),
+            "is_super_admin": admin.get("is_super_admin", False),
+            "contact_exists": admin.get("contact_exists", True),
+        })
     
     # Generate new access token
     new_access_token = create_access_token(data=token_data)
+    response_data["access_token"] = new_access_token
     
-    return "Token refreshed successfully", {
-        "access_token": new_access_token,
-        "role": token_data["role"],
-        "id": token_data["id"],
-    }
-
-
+    return "Token refreshed successfully", response_data
 def _get_admin_record(user_id: int) -> Dict[str, object] | None:
     """Get admin record from either repository."""
     admin = auth_repository.get_admin_by_id(user_id)
     if admin:
         return admin
     return registration_repository.get_admin_by_id(user_id)
-
-
 def _normalize_admin_record(admin: Dict[str, object]) -> Dict[str, object]:
     """Normalize admin record for consistent data structure."""
     normalized = dict(admin)

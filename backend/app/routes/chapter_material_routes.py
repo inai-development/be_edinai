@@ -1340,6 +1340,13 @@ async def upload_chapter_material(
         )
     except HTTPException as e:
         logger.error(f"PDF upload to S3 failed: {e.detail}")
+        if e.status_code == status.HTTP_400_BAD_REQUEST:
+            message = _extract_error_message(e.detail)
+            return {
+                "status": False,
+                "message": message,
+                "data": None,
+            }
         raise
     except Exception as e:
         logger.error(f"Unexpected error during PDF upload: {e}")

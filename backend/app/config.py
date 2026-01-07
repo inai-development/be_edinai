@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 from functools import lru_cache
-from typing import List, Optional, Dict, Any, Literal
+from typing import List, Optional, Dict, Any, Literal, Sequence
 
 from pydantic import Field, field_validator, PostgresDsn, validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -82,6 +82,38 @@ class Settings(BaseSettings):
     fernet_key: Optional[str] = Field(None, env="FERNET_KEY")
     default_language: str = Field("English", env="DEFAULT_LANGUAGE")
     default_lecture_duration: int = Field(45, env="DEFAULT_LECTURE_DURATION")
+    rate_limit_enabled: bool = Field(True, env="RATE_LIMIT_ENABLED")
+    rate_limit_key_prefix: str = Field("rl", env="RATE_LIMIT_KEY_PREFIX")
+    rate_limit_default_requests: int = Field(600, env="RATE_LIMIT_DEFAULT_REQUESTS")
+    rate_limit_default_window_seconds: int = Field(300, env="RATE_LIMIT_DEFAULT_WINDOW_SECONDS")
+    rate_limit_default_block_seconds: int = Field(600, env="RATE_LIMIT_DEFAULT_BLOCK_SECONDS")
+    rate_limit_login_requests: int = Field(5, env="RATE_LIMIT_LOGIN_REQUESTS")
+    rate_limit_login_window_seconds: int = Field(60, env="RATE_LIMIT_LOGIN_WINDOW_SECONDS")
+    rate_limit_login_block_seconds: int = Field(900, env="RATE_LIMIT_LOGIN_BLOCK_SECONDS")
+    rate_limit_otp_requests: int = Field(3, env="RATE_LIMIT_OTP_REQUESTS")
+    rate_limit_otp_window_seconds: int = Field(300, env="RATE_LIMIT_OTP_WINDOW_SECONDS")
+    rate_limit_otp_block_seconds: int = Field(1800, env="RATE_LIMIT_OTP_BLOCK_SECONDS")
+    rate_limit_health_requests: int = Field(120, env="RATE_LIMIT_HEALTH_REQUESTS")
+    rate_limit_health_window_seconds: int = Field(60, env="RATE_LIMIT_HEALTH_WINDOW_SECONDS")
+    rate_limit_health_block_seconds: int = Field(120, env="RATE_LIMIT_HEALTH_BLOCK_SECONDS")
+    rate_limit_metrics_requests: int = Field(30, env="RATE_LIMIT_METRICS_REQUESTS")
+    rate_limit_metrics_window_seconds: int = Field(60, env="RATE_LIMIT_METRICS_WINDOW_SECONDS")
+    rate_limit_metrics_block_seconds: int = Field(300, env="RATE_LIMIT_METRICS_BLOCK_SECONDS")
+    rate_limit_whitelist_ips: List[str] = Field(default_factory=list, env="RATE_LIMIT_WHITELIST_IPS")
+    rate_limit_exempt_paths: List[str] = Field(default_factory=lambda: ["/docs", "/redoc", "/openapi.json"], env="RATE_LIMIT_EXEMPT_PATHS")
+    blocked_user_agents: List[str] = Field(
+        default_factory=lambda: [
+            "curl",
+            "wget",
+            "python-requests",
+            "httpclient",
+            "scrapy",
+            "java",
+            "libwww-perl",
+        ],
+        env="BLOCKED_USER_AGENTS",
+    )
+    max_request_body_bytes: int = Field(1_048_576, env="MAX_REQUEST_BODY_BYTES")  # 1 MiB
     dev_admin_email: Optional[str] = Field("dev_admin@inai.dev", env="DEV_ADMIN_EMAIL")
     dev_admin_password: Optional[str] = Field("DevAdmin@123", env="DEV_ADMIN_PASSWORD")
     dev_admin_name: str = Field("Dev Admin", env="DEV_ADMIN_NAME")
@@ -104,7 +136,7 @@ class Settings(BaseSettings):
         description="Base URL (e.g., https://example.com) used when constructing absolute media links",
     )
     gcp_tts_credentials_path: Optional[str] = Field(
-        "/opt/app/json.production",
+        ".json",
         env="GCP_TTS_CREDENTIALS_PATH",
         description="Absolute path to the Google Cloud Text-to-Speech service account JSON.",
     )
@@ -196,7 +228,7 @@ class Settings(BaseSettings):
 
     # Final model_config (server env file)
     model_config = SettingsConfigDict(
-        env_file="/opt/app/env.production",
+        env_file=".env",
         env_file_encoding="utf-8",
         extra="allow",
     )
@@ -216,6 +248,28 @@ class Settings(BaseSettings):
             if value.strip() == "*":
                 return ["*"]
             return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
+
+    @staticmethod
+    def _ensure_list(value: List[str] | Sequence[str] | str | None) -> List[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            if not value.strip():
+                return []
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return [str(item).strip() for item in value if str(item).strip()]
+
+    @field_validator("rate_limit_whitelist_ips", "rate_limit_exempt_paths", "blocked_user_agents", mode="before")
+    @classmethod
+    def _split_comma_separated(cls, value):
+        return cls._ensure_list(value)
+
+    @field_validator("max_request_body_bytes")
+    @classmethod
+    def _validate_body_limit(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("MAX_REQUEST_BODY_BYTES must be non-negative")
         return value
 
 

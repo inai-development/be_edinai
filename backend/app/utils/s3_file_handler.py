@@ -10,6 +10,8 @@ from typing import List, Optional, Set
 from fastapi import HTTPException, UploadFile
 from PIL import Image
 
+from PyPDF2 import PdfReader
+
 from app.services.s3_service import S3Service
 
 logger = logging.getLogger(__name__)
@@ -31,6 +33,7 @@ ALLOWED_AUDIO_TYPES = {
 }
 
 DEFAULT_MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB for S3
+MAX_PDF_PAGE_COUNT = int(os.getenv("MAX_UPLOAD_PDF_PAGES", "50"))
 
 MIMETYPE_EXTENSION_MAP = {
     "image/jpeg": ".jpg",
@@ -124,6 +127,23 @@ async def upload_pdf_to_s3(
 
     try:
         content = await file.read()
+
+        # Validate page count for PDFs before upload
+
+        if content:
+            try:
+                reader = PdfReader(io.BytesIO(content))
+                page_count = len(reader.pages)
+            except Exception as exc:  # pragma: no cover - PyPDF2 specific errors
+                logger.error("Failed to read PDF for page count validation: %s", exc)
+                raise HTTPException(status_code=400, detail="Invalid PDF file.") from exc
+
+            if page_count > MAX_PDF_PAGE_COUNT:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Cannot upload PDF because it exceeds the maximum of {MAX_PDF_PAGE_COUNT} pages."
+                    ),               )
         
         # Generate unique filename
         if file.filename:
